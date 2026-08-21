@@ -669,6 +669,34 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <p><svg class="icon" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5"/><path d="M4 19h16"/></svg>Descarga el archivo actualizado y súbelo a tu repositorio de GitHub (reemplazando el actual) cada vez que edites usuarios o cargues un Excel nuevo — el archivo descargado incluye tanto los usuarios como el portfolio recién cargado, así toda la familia ve la misma versión sin tener que subir nada ellos mismos. Mientras no hagas esto, los cambios solo existen en este navegador.</p>
         <button type="button" class="btn primary" id="export-btn">Descargar archivo actualizado</button>
       </div>
+
+      <div class="admin-export-box" id="github-publish-box">
+        <h3 style="margin:0 0 8px;font-size:14.5px;font-weight:650;">Publicar directamente a GitHub</h3>
+        <p>Configura esto una sola vez con un token de GitHub (el mismo tipo que uses para otras automatizaciones: acceso solo a este repositorio, permiso Contents → Read and write) y desde aquí publicas los cambios con un clic — sin descargar ni subir nada a mano. El token se guarda solo en este navegador y solo se usa para hablar directo con GitHub.</p>
+        <div class="grid cols-2" style="gap:10px;">
+          <div class="form-field">
+            <label for="gh-owner">Usuario/organización de GitHub</label>
+            <input type="text" id="gh-owner" placeholder="ej. gdegwitz-web">
+          </div>
+          <div class="form-field">
+            <label for="gh-repo">Repositorio</label>
+            <input type="text" id="gh-repo" placeholder="ej. FamilyOffice">
+          </div>
+          <div class="form-field">
+            <label for="gh-path">Ruta del archivo</label>
+            <input type="text" id="gh-path" value="index.html">
+          </div>
+          <div class="form-field">
+            <label for="gh-token">Token de GitHub</label>
+            <input type="password" id="gh-token" placeholder="github_pat_...">
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:4px;">
+          <button type="button" class="btn" id="gh-save-config-btn">Guardar configuración</button>
+          <button type="button" class="btn primary" id="gh-publish-btn">Publicar a GitHub ahora</button>
+        </div>
+        <div id="gh-publish-status" style="margin-top:10px;font-size:12.5px;"></div>
+      </div>
     </section>
 
   </main>
@@ -1576,27 +1604,29 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return before + replacement + after;
   }
 
-  function exportUpdatedFile(){
-    if (!ORIGINAL_HTML) { alert('No se pudo preparar la descarga. Recarga la página e intenta de nuevo.'); return; }
+  function buildUpdatedHtml(){
+    if (!ORIGINAL_HTML) return { html: null, error: 'No se pudo preparar el archivo. Recarga la página e intenta de nuevo.' };
 
     let html = substituteMarker(
       ORIGINAL_HTML, '/*__USERS_START__*/', '/*__USERS_END__*/',
       '\n  const USERS = ' + JSON.stringify(USERS, null, 2) + ';\n  '
     );
-    if (html === null) {
-      alert('No se pudo generar el archivo (no se encontraron los marcadores de usuarios).');
-      return;
-    }
+    if (html === null) return { html: null, error: 'No se pudo generar el archivo (no se encontraron los marcadores de usuarios).' };
 
     const stateJs = state ? JSON.stringify(state) : 'null';
     html = substituteMarker(
       html, '/*__DATA_START__*/', '/*__DATA_END__*/',
       '\n  const EMBEDDED_STATE = ' + stateJs + ';\n  '
     );
-    if (html === null) {
-      alert('No se pudo generar el archivo (no se encontraron los marcadores de datos).');
-      return;
-    }
+    if (html === null) return { html: null, error: 'No se pudo generar el archivo (no se encontraron los marcadores de datos).' };
+
+    return { html: html, error: null };
+  }
+
+  function exportUpdatedFile(){
+    const result = buildUpdatedHtml();
+    if (!result.html) { alert(result.error); return; }
+    const html = result.html;
 
     const blob = new Blob([html], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
@@ -1607,6 +1637,94 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     a.click();
     document.body.removeChild(a);
     setTimeout(() => URL.revokeObjectURL(url), 5000);
+  }
+
+  // ---------------- publish directly to GitHub ----------------
+  const GH_CONFIG_KEY = 'mv_family_office_github_config_v1';
+
+  function loadGithubConfig(){
+    try { return JSON.parse(localStorage.getItem(GH_CONFIG_KEY) || 'null'); } catch(e){ return null; }
+  }
+  function saveGithubConfig(cfg){
+    try { localStorage.setItem(GH_CONFIG_KEY, JSON.stringify(cfg)); } catch(e){}
+  }
+  function b64EncodeUnicode(str){
+    return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, function(match, p1){
+      return String.fromCharCode(parseInt(p1, 16));
+    }));
+  }
+  function setGithubStatus(msg, cls){
+    const el = document.getElementById('gh-publish-status');
+    if (!el) return;
+    el.textContent = msg;
+    el.style.color = cls === 'ok' ? 'var(--green)' : (cls === 'err' ? 'var(--red)' : 'var(--muted)');
+  }
+  function readGithubConfigForm(){
+    return {
+      owner: (document.getElementById('gh-owner') || {}).value ? document.getElementById('gh-owner').value.trim() : '',
+      repo: (document.getElementById('gh-repo') || {}).value ? document.getElementById('gh-repo').value.trim() : '',
+      path: (document.getElementById('gh-path') || {}).value ? document.getElementById('gh-path').value.trim() : 'index.html',
+      token: (document.getElementById('gh-token') || {}).value ? document.getElementById('gh-token').value.trim() : ''
+    };
+  }
+  function initGithubPublish(){
+    const ownerEl = document.getElementById('gh-owner');
+    if (!ownerEl) return; // admin section not present for this user/build
+    const cfg = loadGithubConfig();
+    if (cfg) {
+      ownerEl.value = cfg.owner || '';
+      document.getElementById('gh-repo').value = cfg.repo || '';
+      document.getElementById('gh-path').value = cfg.path || 'index.html';
+      document.getElementById('gh-token').value = cfg.token || '';
+    }
+    const saveBtn = document.getElementById('gh-save-config-btn');
+    if (saveBtn) saveBtn.addEventListener('click', function(){
+      saveGithubConfig(readGithubConfigForm());
+      setGithubStatus('Configuración guardada en este navegador.', 'ok');
+    });
+    const publishBtn = document.getElementById('gh-publish-btn');
+    if (publishBtn) publishBtn.addEventListener('click', publishToGithub);
+  }
+  async function publishToGithub(){
+    const cfg = readGithubConfigForm();
+    if (!cfg.owner || !cfg.repo || !cfg.token) {
+      setGithubStatus('Completa usuario, repositorio y token antes de publicar.', 'err');
+      return;
+    }
+    if (!cfg.path) cfg.path = 'index.html';
+    saveGithubConfig(cfg);
+
+    const result = buildUpdatedHtml();
+    if (!result.html) { setGithubStatus(result.error, 'err'); return; }
+
+    setGithubStatus('Publicando…', null);
+    const apiUrl = 'https://api.github.com/repos/' + encodeURIComponent(cfg.owner) + '/' + encodeURIComponent(cfg.repo) + '/contents/' + cfg.path.split('/').map(encodeURIComponent).join('/');
+
+    try {
+      let sha = null;
+      const getRes = await fetch(apiUrl, { headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json' } });
+      if (getRes.ok) {
+        const getJson = await getRes.json();
+        sha = getJson.sha;
+      } else if (getRes.status !== 404) {
+        throw new Error('No se pudo leer el archivo actual (' + getRes.status + '): ' + (await getRes.text()));
+      }
+
+      const body = { message: 'Actualiza portfolio / usuarios (desde el panel de administración)', content: b64EncodeUnicode(result.html) };
+      if (sha) body.sha = sha;
+
+      const putRes = await fetch(apiUrl, {
+        method: 'PUT',
+        headers: { Authorization: 'Bearer ' + cfg.token, Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      if (!putRes.ok) throw new Error('GitHub respondió ' + putRes.status + ': ' + (await putRes.text()));
+
+      setGithubStatus('¡Publicado! Los cambios estarán disponibles en 1-2 minutos.', 'ok');
+    } catch (err) {
+      setGithubStatus('Error al publicar: ' + err.message, 'err');
+      console.error(err);
+    }
   }
 
   const STORAGE_KEY = 'mv_family_office_snapshot_v2'; // v2: adds monthly time series for the date picker
@@ -2282,6 +2400,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
     initLock();
     initAdminForm();
+    initGithubPublish();
     const lockBtn = document.getElementById('lock-btn');
     if (lockBtn) lockBtn.addEventListener('click', lockApp);
     const exportBtn = document.getElementById('export-btn');
@@ -2324,7 +2443,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // Exposed for debugging / automated smoke tests only.
   window.MV_APP = { handleFile, renderAll, getState: () => state, setState: (s) => { state = s; }, rerenderForDate,
     setSelectedDate: (y, m) => { selectedYear = y; selectedMonth = m; },
-    getUsers: () => USERS, getCurrentUser: () => currentUser, exportUpdatedFile,
+    getUsers: () => USERS, getCurrentUser: () => currentUser, exportUpdatedFile, publishToGithub,
+    loadGithubConfig, saveGithubConfig,
     _setCurrentUserForTest: (u) => { currentUser = u; } };
 })();
 </script>
