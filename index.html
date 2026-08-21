@@ -4,6 +4,14 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>MV Family Office — Portfolio Familiar</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" type="image/png" href="favicon-32.png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#0f8f5f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="MV Family">
 <script>
 
 /*! xlsx.js (C) 2013-present SheetJS -- http://sheetjs.com */
@@ -98,7 +106,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   .brand{display:flex;align-items:center;gap:14px;position:relative;}
   .brand .mark{
-    width:46px;height:46px;border-radius:50%;overflow:hidden;
+    width:46px;height:46px;border-radius:19%;overflow:hidden;
     display:flex;align-items:center;justify-content:center;
     flex:none;box-shadow:0 6px 16px -6px rgba(15,143,95,.55), inset 0 1px 0 rgba(255,255,255,.25);
   }
@@ -382,7 +390,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     border-radius:var(--radius);padding:36px 32px;text-align:center;
   }
   .lock-mark{
-    width:56px;height:56px;border-radius:50%;overflow:hidden;
+    width:56px;height:56px;border-radius:19%;overflow:hidden;
     display:flex;align-items:center;justify-content:center;
     margin:0 auto 18px;box-shadow:0 8px 20px -8px rgba(15,143,95,.6), inset 0 1px 0 rgba(255,255,255,.25);
   }
@@ -403,17 +411,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   <div class="lock-card">
     <div class="lock-mark"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MV">
         <defs>
-          <linearGradient id="mvGradLock" x1="10%" y1="0%" x2="95%" y2="100%">
+          <linearGradient id="mvGradLock" x1="8%" y1="0%" x2="95%" y2="100%">
             <stop offset="0%" stop-color="#3ddb9b"/>
-            <stop offset="55%" stop-color="#0f8f5f"/>
-            <stop offset="100%" stop-color="#063d2c"/>
+            <stop offset="50%" stop-color="#0f8f5f"/>
+            <stop offset="100%" stop-color="#052e21"/>
           </linearGradient>
+          <clipPath id="mvGradLock-clip"><rect x="0" y="0" width="100" height="100" rx="19" ry="19"/></clipPath>
         </defs>
-        <circle cx="50" cy="50" r="49" fill="url(#mvGradLock)"/>
-        <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="1"/>
-        <path d="M27,70 L27,31" stroke="#f4fff9" stroke-width="8" stroke-linecap="round" fill="none"/>
-        <path d="M73,31 L73,70" stroke="#f4fff9" stroke-width="8" stroke-linecap="round" fill="none"/>
-        <path d="M27,31 L50,59 L73,31" stroke="#a9f2d1" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <g clip-path="url(#mvGradLock-clip)">
+          <rect width="100" height="100" fill="url(#mvGradLock)"/>
+          <text x="50" y="72" font-family="Georgia, 'Liberation Serif', serif" font-weight="bold" font-size="62"
+                text-anchor="middle" fill="#8fedc4" opacity="0.7">V</text>
+          <text x="50" y="64.5" font-family="Georgia, 'Liberation Serif', serif" font-weight="bold" font-size="45"
+                text-anchor="middle" fill="#fbfffc">M</text>
+        </g>
+        <rect x="0.5" y="0.5" width="99" height="99" rx="18.5" ry="18.5" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="0.6"/>
       </svg></div>
     <h2>MV Family Office</h2>
     <p>Ingresa tu usuario y contraseña para ver el portfolio familiar.</p>
@@ -432,17 +444,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     <div class="brand">
       <div class="mark"><svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="MV">
         <defs>
-          <linearGradient id="mvGradHeader" x1="10%" y1="0%" x2="95%" y2="100%">
+          <linearGradient id="mvGradHeader" x1="8%" y1="0%" x2="95%" y2="100%">
             <stop offset="0%" stop-color="#3ddb9b"/>
-            <stop offset="55%" stop-color="#0f8f5f"/>
-            <stop offset="100%" stop-color="#063d2c"/>
+            <stop offset="50%" stop-color="#0f8f5f"/>
+            <stop offset="100%" stop-color="#052e21"/>
           </linearGradient>
+          <clipPath id="mvGradHeader-clip"><rect x="0" y="0" width="100" height="100" rx="19" ry="19"/></clipPath>
         </defs>
-        <circle cx="50" cy="50" r="49" fill="url(#mvGradHeader)"/>
-        <circle cx="50" cy="50" r="47" fill="none" stroke="rgba(255,255,255,.22)" stroke-width="1"/>
-        <path d="M27,70 L27,31" stroke="#f4fff9" stroke-width="8" stroke-linecap="round" fill="none"/>
-        <path d="M73,31 L73,70" stroke="#f4fff9" stroke-width="8" stroke-linecap="round" fill="none"/>
-        <path d="M27,31 L50,59 L73,31" stroke="#a9f2d1" stroke-width="8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+        <g clip-path="url(#mvGradHeader-clip)">
+          <rect width="100" height="100" fill="url(#mvGradHeader)"/>
+          <text x="50" y="72" font-family="Georgia, 'Liberation Serif', serif" font-weight="bold" font-size="62"
+                text-anchor="middle" fill="#8fedc4" opacity="0.7">V</text>
+          <text x="50" y="64.5" font-family="Georgia, 'Liberation Serif', serif" font-weight="bold" font-size="45"
+                text-anchor="middle" fill="#fbfffc">M</text>
+        </g>
+        <rect x="0.5" y="0.5" width="99" height="99" rx="18.5" ry="18.5" fill="none" stroke="rgba(255,255,255,.18)" stroke-width="0.6"/>
       </svg></div>
       <div>
         <h1>MV Family Office</h1>
