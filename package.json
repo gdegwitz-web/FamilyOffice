@@ -1,0 +1,9 @@
+{
+  "name": "mv-family-office-build-scripts",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Server-side data refresh for MV Family Office (used by the GitHub Action, not by the app itself).",
+  "dependencies": {
+    "xlsx": "0.18.5"
+  }
+}

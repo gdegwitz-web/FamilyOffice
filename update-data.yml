@@ -1,0 +1,39 @@
+name: Actualizar portfolio MV Family Office
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "data/**.xlsm"
+      - "data/**.xlsx"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar dependencias
+        working-directory: scripts
+        run: npm install --no-audit --no-fund
+
+      - name: Procesar Excel y actualizar index.html
+        run: node scripts/build-data.js
+
+      - name: Publicar cambios
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Actualiza portfolio (automático)"
+          file_pattern: index.html
+          commit_user_name: "mv-family-office-bot"
+          commit_user_email: "actions@users.noreply.github.com"
