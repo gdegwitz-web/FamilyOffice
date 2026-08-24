@@ -760,6 +760,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           <div class="is-waterfall" id="is-monthly-rows"></div>
         </div>
       </div>
+
+      <div class="panel" style="margin-top:14px;">
+        <h3 id="is-waterfall-title">Cascada YTD</h3>
+        <div class="chart-wrap" style="height:320px;"><canvas id="chart-is-waterfall"></canvas></div>
+      </div>
     </section>
 
     <!-- ========== ADMINISTRACIÓN (solo admin) ========== -->
@@ -2353,6 +2358,91 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         monthlyRowsEl.innerHTML = '<div class="is-row"><span>Sin datos disponibles.</span></div>';
       }
     }
+
+    renderISWaterfall(is);
+  }
+
+  // Floating-bar cascade chart: Intereses y Dividendos -> Ganancias de Capital ->
+  // Gastos y Transferencias -> Aumento Patrimonio, mirroring the YTD box above it visually.
+  const waterfallLabelsPlugin = {
+    id: 'waterfallLabels',
+    afterDatasetsDraw(chart){
+      if (chart.config._isWaterfall !== true) return;
+      const meta = chart.getDatasetMeta(0);
+      const steps = chart.data._stepValues || [];
+      const { ctx } = chart;
+      ctx.save();
+      ctx.font = "600 11.5px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+      ctx.textAlign = 'center';
+      meta.data.forEach((bar, i) => {
+        const step = steps[i];
+        if (!step) return;
+        const topY = Math.min(bar.y, bar.base) - 8;
+        ctx.fillStyle = step.total ? '#f0cf8a' : (step.value >= 0 ? '#3ddb9b' : '#ff7a7a');
+        const sign = step.total ? '' : (step.value >= 0 ? '+' : '');
+        ctx.fillText(sign + fmtUSD(step.value), bar.x, topY);
+      });
+      // dashed connector lines between consecutive bars
+      ctx.strokeStyle = 'rgba(255,255,255,.15)';
+      ctx.setLineDash([3,3]);
+      ctx.lineWidth = 1;
+      for (let i = 0; i < meta.data.length - 1; i++) {
+        const a = meta.data[i], b = meta.data[i+1];
+        const ay = Math.min(a.y, a.base);
+        ctx.beginPath();
+        ctx.moveTo(a.x + a.width/2, ay);
+        ctx.lineTo(b.x - b.width/2, ay);
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+  };
+
+  function renderISWaterfall(is){
+    const titleEl = document.getElementById('is-waterfall-title');
+    if (titleEl) titleEl.textContent = 'Cascada ' + ((is && is.ytdLabel) ? is.ytdLabel : 'YTD');
+    if (!is || !is.ytd || is.ytd.wealthIncrease === null || is.ytd.wealthIncrease === undefined) {
+      if (charts['chart-is-waterfall']) { charts['chart-is-waterfall'].destroy(); delete charts['chart-is-waterfall']; }
+      return;
+    }
+    const y = is.ytd;
+    const labels = [['Intereses y','Dividendos'], ['Ganancias de','Capital'], ['Gastos y','Transferencias'], ['Aumento','Patrimonio']];
+    let cum = 0;
+    const bars = [];
+    const steps = [];
+    [['interestDividends', y.interestDividends], ['capitalGains', y.capitalGains], ['expensesTransfers', y.expensesTransfers]].forEach(([key, val]) => {
+      const v = val || 0;
+      const from = cum, to = cum + v;
+      bars.push([Math.min(from,to), Math.max(from,to)]);
+      steps.push({ value: v, total:false });
+      cum = to;
+    });
+    bars.push([0, cum]);
+    steps.push({ value: y.wealthIncrease !== null && y.wealthIncrease !== undefined ? y.wealthIncrease : cum, total:true });
+
+    const colors = steps.map(s => s.total ? '#d4b06a' : (s.value >= 0 ? '#3ddb9b' : '#ff7a7a'));
+
+    const chart = makeChart('chart-is-waterfall', {
+      type:'bar',
+      data:{
+        labels,
+        _stepValues: steps,
+        datasets:[{ data: bars, backgroundColor: colors, borderRadius:5, barPercentage:0.55 }]
+      },
+      options:{
+        plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label: ctx => {
+          const s = steps[ctx.dataIndex];
+          return (s.total ? 'Total: ' : '') + fmtUSD(s.value);
+        } } } },
+        scales:{
+          y:{ ticks:{ color:CHART_DEFAULTS_TEXT, callback:v=>fmtUSD(v) }, grid:{ color:CHART_GRID } },
+          x:{ ticks:{ color:CHART_DEFAULTS_TEXT, font:{ size:11 } }, grid:{ display:false } }
+        },
+        layout:{ padding:{ top:22 } }
+      },
+      plugins:[waterfallLabelsPlugin]
+    });
+    if (chart) chart.config._isWaterfall = true;
   }
 
   function renderDeudaGastos(){
