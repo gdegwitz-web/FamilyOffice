@@ -1315,26 +1315,51 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function parseIS(wb) {
     const ws = wb.Sheets['IS'];
     if (!ws) return null;
-    const ytdLabel = getCell(ws, 2, 2); // B2, e.g. 'YTD 2026'
+    const bounds = sheetBounds(ws);
+
+    // The exact row numbers on this sheet have drifted between monthly file versions in the
+    // past (an inserted row shifts everything below it), so rows are located by their label
+    // text instead of hardcoded row numbers -- same defensive approach used for 'Expenses'.
+    const LABEL_COL = 3; // C
+    let ytdLabel = null;
+    outer:
+    for (let r = 1; r <= Math.min(bounds.maxRow, 6); r++) {
+      for (let c = 1; c <= Math.min(bounds.maxCol, 8); c++) {
+        const v = getCell(ws, r, c);
+        if (typeof v === 'string' && /^ytd/i.test(v.trim())) { ytdLabel = v.trim(); break outer; }
+      }
+    }
+
+    const initialBalanceRow = findRowByExactLabel(ws, LABEL_COL, 'Initial Balance', 1, bounds.maxRow);
+    const interestRow = findRowByExactLabel(ws, LABEL_COL, 'Intereses y Dividendos', 1, bounds.maxRow);
+    const capGainsRow = findRowByExactLabel(ws, LABEL_COL, 'Ganancias de Capital', 1, bounds.maxRow);
+    const expensesRow = findRowByExactLabel(ws, LABEL_COL, 'Gastos y Transferencias', 1, bounds.maxRow);
+    const wealthIncreaseRow = findRowByExactLabel(ws, LABEL_COL, 'Aumento Patrimonio', 1, bounds.maxRow);
+
+    const MONTHLY_LABEL_COL = 9; // I
+    const incomeRow = findRowByExactLabel(ws, MONTHLY_LABEL_COL, 'Ingresos al Mes', 1, bounds.maxRow);
+    const expensesMonthRow = findRowByExactLabel(ws, MONTHLY_LABEL_COL, 'Gastos al Mes', 1, bounds.maxRow);
+    const netGainRow = findRowByExactLabel(ws, MONTHLY_LABEL_COL, 'Ganancia Neta al Mes', 1, bounds.maxRow);
+
     return {
-      ytdLabel: ytdLabel != null ? String(ytdLabel) : null,
+      ytdLabel,
       ytd: {
-        initialBalance: safe(getCell(ws, 6, 4)),               // D6
-        interestDividends: safe(getCell(ws, 7, 4)),            // D7
-        interestDividendsPct: safe(getCell(ws, 7, 5)),          // E7
-        capitalGains: safe(getCell(ws, 8, 4)),                  // D8
-        capitalGainsPct: safe(getCell(ws, 8, 5)),                // E8
-        expensesTransfers: safe(getCell(ws, 9, 4)),              // D9
-        expensesTransfersPct: safe(getCell(ws, 9, 5)),           // E9
-        wealthIncrease: safe(getCell(ws, 10, 4)),                 // D10
-        wealthIncreasePct: safe(getCell(ws, 10, 5))               // E10
+        initialBalance: initialBalanceRow ? safe(getCell(ws, initialBalanceRow, 4)) : null,
+        interestDividends: interestRow ? safe(getCell(ws, interestRow, 4)) : null,
+        interestDividendsPct: interestRow ? safe(getCell(ws, interestRow, 5)) : null,
+        capitalGains: capGainsRow ? safe(getCell(ws, capGainsRow, 4)) : null,
+        capitalGainsPct: capGainsRow ? safe(getCell(ws, capGainsRow, 5)) : null,
+        expensesTransfers: expensesRow ? safe(getCell(ws, expensesRow, 4)) : null,
+        expensesTransfersPct: expensesRow ? safe(getCell(ws, expensesRow, 5)) : null,
+        wealthIncrease: wealthIncreaseRow ? safe(getCell(ws, wealthIncreaseRow, 4)) : null,
+        wealthIncreasePct: wealthIncreaseRow ? safe(getCell(ws, wealthIncreaseRow, 5)) : null
       },
       monthly: {
-        income: safe(getCell(ws, 8, 10)),        // J8
-        incomePct: safe(getCell(ws, 8, 11)),      // K8
-        expenses: safe(getCell(ws, 9, 10)),       // J9
-        netGain: safe(getCell(ws, 10, 10)),        // J10
-        netGainPct: safe(getCell(ws, 10, 11))      // K10
+        income: incomeRow ? safe(getCell(ws, incomeRow, 10)) : null,
+        incomePct: incomeRow ? safe(getCell(ws, incomeRow, 11)) : null,
+        expenses: expensesMonthRow ? safe(getCell(ws, expensesMonthRow, 10)) : null,
+        netGain: netGainRow ? safe(getCell(ws, netGainRow, 10)) : null,
+        netGainPct: netGainRow ? safe(getCell(ws, netGainRow, 11)) : null
       }
     };
   }
@@ -1342,27 +1367,58 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function parseAnnualIS(wb) {
     const ws = wb.Sheets['BS & IS'];
     if (!ws) return [];
-    const YEAR_COLS = [{ year: getCell(ws, 2, 4), col: 4 }, { year: getCell(ws, 2, 5), col: 5 }, { year: getCell(ws, 2, 6), col: 6 }];
-    return YEAR_COLS.filter(yc => typeof yc.year === 'number').map(({ year, col }) => {
-      // Row 32 ('GASTOS' total) is blank for the first year column in the source file --
-      // its cached formula value lands one row lower (row 36) instead. Fall back to it so
-      // the total is still shown correctly for that year.
-      const gastosPrimary = safe(getCell(ws, 32, col));
-      const gastosFallback = safe(getCell(ws, 36, col));
+    const bounds = sheetBounds(ws);
+
+    // Year columns: scan the top rows for the one row that has the MOST 4-digit-year
+    // values across its columns (the real "2023 | 2024 | 2025" header row) rather than
+    // hardcoding columns D/E/F -- other rows near the top of this sheet contain isolated,
+    // unrelated year markers (e.g. a lone "current year" cell) that would otherwise be
+    // mistaken for the header if we just took the first row with any match.
+    let yearCols = [];
+    for (let r = 1; r <= Math.min(bounds.maxRow, 6); r++) {
+      const rowYears = [];
+      for (let c = 1; c <= bounds.maxCol; c++) {
+        const v = getCell(ws, r, c);
+        if (typeof v === 'number' && v >= 1990 && v <= 2100) rowYears.push({ year: v, col: c });
+      }
+      if (rowYears.length > yearCols.length) yearCols = rowYears;
+    }
+    yearCols.sort((a, b) => a.col - b.col);
+
+    // Rows are located by label text (not hardcoded row numbers) since this section has
+    // drifted between file versions before. JPM/UBS sub-rows are read as fixed offsets
+    // below their parent label, since that internal structure is stable even if the whole
+    // block shifts up/down as a unit.
+    const LABEL_COL = 3; // C
+    const ingresosRow = findRowByExactLabel(ws, LABEL_COL, 'INGRESOS', 1, bounds.maxRow);
+    const cashflowRow = ingresosRow ? findRowByExactLabel(ws, LABEL_COL, 'Cashflow', ingresosRow + 1, Math.min(bounds.maxRow, ingresosRow + 6)) : null;
+    const realizedRow = ingresosRow ? findRowByExactLabel(ws, LABEL_COL, 'Realized Gain and Loss', ingresosRow + 1, bounds.maxRow) : null;
+    const gastosRow = findRowByExactLabel(ws, LABEL_COL, 'GASTOS', (ingresosRow || 0) + 1, bounds.maxRow);
+    const dietaRow = findRowByExactLabel(ws, LABEL_COL, 'DIETA A DIRECTORES', (gastosRow || 0) + 1, bounds.maxRow);
+    const gananciaNetaRow = findRowByExactLabel(ws, LABEL_COL, 'Ganancia Neta', (dietaRow || gastosRow || 0) + 1, bounds.maxRow);
+    // Row immediately below 'Gastos de Financiamiento'/'Income Tax Expense' occasionally holds
+    // a stray cached total for the GASTOS row when that cell itself comes back blank.
+    const gastosFallbackRow = gastosRow ? gastosRow + 4 : null;
+
+    function cellAt(row, col){ return row ? safe(getCell(ws, row, col)) : null; }
+
+    return yearCols.map(({ year, col }) => {
+      const gastosPrimary = cellAt(gastosRow, col);
+      const gastosFallback = cellAt(gastosFallbackRow, col);
       return {
         year,
-        ingresos: safe(getCell(ws, 24, col)),
-        cashflow: safe(getCell(ws, 25, col)),
-        cashflowJPM: safe(getCell(ws, 26, col)),
-        cashflowUBS: safe(getCell(ws, 27, col)),
-        realizedGainLoss: safe(getCell(ws, 28, col)),
-        realizedGainLossJPM: safe(getCell(ws, 29, col)),
-        realizedGainLossUBS: safe(getCell(ws, 30, col)),
+        ingresos: cellAt(ingresosRow, col),
+        cashflow: cellAt(cashflowRow, col),
+        cashflowJPM: cellAt(cashflowRow ? cashflowRow + 1 : null, col),
+        cashflowUBS: cellAt(cashflowRow ? cashflowRow + 2 : null, col),
+        realizedGainLoss: cellAt(realizedRow, col),
+        realizedGainLossJPM: cellAt(realizedRow ? realizedRow + 1 : null, col),
+        realizedGainLossUBS: cellAt(realizedRow ? realizedRow + 2 : null, col),
         gastos: gastosPrimary !== null ? gastosPrimary : gastosFallback,
-        gastosOperativos: safe(getCell(ws, 33, col)),
-        gastosFinanciamiento: safe(getCell(ws, 34, col)),
-        dietaDirectores: safe(getCell(ws, 38, col)),
-        gananciaNeta: safe(getCell(ws, 39, col))
+        gastosOperativos: cellAt(gastosRow ? gastosRow + 1 : null, col),
+        gastosFinanciamiento: cellAt(gastosRow ? gastosRow + 2 : null, col),
+        dietaDirectores: cellAt(dietaRow, col),
+        gananciaNeta: cellAt(gananciaNetaRow, col)
       };
     });
   }
