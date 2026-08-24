@@ -756,14 +756,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           <div class="is-waterfall" id="is-ytd-rows"></div>
         </div>
         <div class="panel">
-          <h3>Mes Actual</h3>
+          <h3>Mensual</h3>
           <div class="is-waterfall" id="is-monthly-rows"></div>
         </div>
-      </div>
-
-      <div class="card section-title"><h2>Comparativo Anual</h2></div>
-      <div class="panel">
-        <div class="table-scroll"><table id="is-annual-table"></table></div>
       </div>
     </section>
 
@@ -2308,7 +2303,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // ===================================================================
   function renderIS(){
     const is = state.incomeStatement;
-    const annual = state.incomeStatementAnnual || [];
     const asOfEl = document.getElementById('is-asof-label');
     if (asOfEl) asOfEl.textContent = state.meta && state.meta.asOf ? ('Al ' + fmtDate(state.meta.asOf)) : '';
 
@@ -2323,15 +2317,17 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       return `<div class="${cls}"><span>${esc(label)}</span><span class="val ${valCls}">${esc(fmtUSD(value))}${pctNote}</span></div>`;
     }
 
+    // Matches the 'IS' sheet's own YTD box exactly: Intereses y Dividendos, Ganancias de
+    // Capital, Gastos y Transferencias, Aumento Patrimonio (no separate "Initial Balance"
+    // line -- that figure isn't part of this box in the source file).
     const ytdRowsEl = document.getElementById('is-ytd-rows');
     if (ytdRowsEl) {
       if (is && is.ytd) {
         ytdRowsEl.innerHTML = [
-          row('Balance Inicial', is.ytd.initialBalance),
-          row('+ Intereses y Dividendos', is.ytd.interestDividends, is.ytd.interestDividendsPct),
-          row('+ Ganancias de Capital', is.ytd.capitalGains, is.ytd.capitalGainsPct),
-          row('− Gastos y Transferencias', is.ytd.expensesTransfers, is.ytd.expensesTransfersPct),
-          row('= Aumento de Patrimonio', is.ytd.wealthIncrease, is.ytd.wealthIncreasePct, { total:true })
+          row('Intereses y Dividendos', is.ytd.interestDividends, is.ytd.interestDividendsPct),
+          row('Ganancias de Capital', is.ytd.capitalGains, is.ytd.capitalGainsPct),
+          row('Gastos y Transferencias', is.ytd.expensesTransfers, is.ytd.expensesTransfersPct),
+          row('Aumento Patrimonio', is.ytd.wealthIncrease, is.ytd.wealthIncreasePct, { total:true })
         ].join('');
       } else {
         ytdRowsEl.innerHTML = '<div class="is-row"><span>Sin datos disponibles.</span></div>';
@@ -2341,40 +2337,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const monthlyRowsEl = document.getElementById('is-monthly-rows');
     if (monthlyRowsEl) {
       if (is && is.monthly) {
+        const income = is.monthly.income;
+        const expenses = is.monthly.expenses;
+        // The source sheet always shows Ingresos al Mes as 100% (it's the base for the other
+        // two ratios) and Gastos al Mes as its own share of that income -- compute both
+        // directly so they always display even if the workbook's own % cell is blank.
+        const incomePct = (income !== null && income !== undefined) ? 1 : null;
+        const expensesPct = (income) ? (expenses / income) : null;
         monthlyRowsEl.innerHTML = [
-          row('Ingresos al Mes', is.monthly.income),
-          row('Gastos al Mes', is.monthly.expenses),
-          row('= Ganancia Neta al Mes', is.monthly.netGain, is.monthly.netGainPct, { total:true })
+          row('Ingresos al Mes', income, incomePct),
+          row('Gastos al Mes', expenses, expensesPct),
+          row('Ganancia Neta al Mes', is.monthly.netGain, is.monthly.netGainPct, { total:true })
         ].join('');
       } else {
         monthlyRowsEl.innerHTML = '<div class="is-row"><span>Sin datos disponibles.</span></div>';
-      }
-    }
-
-    const tbl = document.getElementById('is-annual-table');
-    if (tbl) {
-      if (annual.length) {
-        const years = annual.map(a => a.year);
-        function dataRow(label, key, opts){
-          opts = opts || {};
-          const cells = annual.map(a => `<td>${esc(fmtUSD(a[key]))}</td>`).join('');
-          return `<tr${opts.total ? ' class="total-row"' : ''}><td>${esc(label)}</td>${cells}</tr>`;
-        }
-        tbl.innerHTML = `
-          <thead><tr><th>Concepto</th>${years.map(y => `<th>${y}</th>`).join('')}</tr></thead>
-          <tbody>
-            ${dataRow('Ingresos', 'ingresos', { total:true })}
-            ${dataRow('Cashflow (JPM + UBS)', 'cashflow')}
-            ${dataRow('Ganancias/Pérdidas Realizadas', 'realizedGainLoss')}
-            ${dataRow('Gastos', 'gastos', { total:true })}
-            ${dataRow('Gastos Operativos', 'gastosOperativos')}
-            ${dataRow('Gastos de Financiamiento', 'gastosFinanciamiento')}
-            ${dataRow('Dieta a Directores', 'dietaDirectores')}
-            ${dataRow('Ganancia Neta', 'gananciaNeta', { total:true })}
-          </tbody>
-        `;
-      } else {
-        tbl.innerHTML = '<thead><tr><th>Concepto</th></tr></thead><tbody><tr><td>Sin datos disponibles.</td></tr></tbody>';
       }
     }
   }
