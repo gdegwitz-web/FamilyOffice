@@ -228,6 +228,71 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .hero-spark{position:relative;flex:1 1 260px;min-width:220px;max-width:420px;height:96px;}
   @media(max-width:700px){.hero{padding:22px;}.hero-value{font-size:34px;}}
 
+  /* ===== Landing page: cuadro resumen grande (estilo Dashboard del Excel) ===== */
+  .networth-box{
+    background:linear-gradient(165deg,var(--card2),var(--card) 60%);
+    border:1px solid var(--border);border-radius:var(--radius);
+    box-shadow:var(--shadow-lift);
+    padding:32px 30px 30px;
+    max-width:920px;margin:0 auto;
+    position:relative;overflow:hidden;
+  }
+  .networth-box::after{
+    content:"";position:absolute;inset:0;pointer-events:none;
+    background:radial-gradient(560px 260px at 50% -10%,rgba(212,176,106,.10),transparent 70%);
+  }
+  .nb-header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:26px;position:relative;flex-wrap:wrap;}
+  .nb-title{font-family:var(--serif);font-size:19px;font-weight:600;color:var(--text);}
+  .nb-date{font-size:12.5px;color:var(--muted);}
+  .nb-body{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;align-items:center;gap:18px;position:relative;}
+  .nb-col{display:flex;flex-direction:column;gap:16px;}
+  .nb-col-label{font-size:11.5px;text-transform:uppercase;letter-spacing:1px;font-weight:700;color:var(--green);margin-bottom:-4px;}
+  .nb-col-label-neg{color:var(--red);}
+  .nb-row{display:flex;align-items:center;gap:12px;}
+  .nb-icon{
+    flex:none;width:38px;height:38px;border-radius:10px;
+    background:var(--green-soft);color:var(--green);
+    display:flex;align-items:center;justify-content:center;
+  }
+  .nb-icon svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;}
+  .nb-icon-neg{background:var(--red-soft);color:var(--red);}
+  .nb-row-info{display:flex;flex-direction:column;gap:1px;}
+  .nb-row-label{font-size:12px;color:var(--muted);}
+  .nb-row-value{font-size:15.5px;font-weight:650;color:var(--text);}
+  .nb-total-line{
+    display:flex;justify-content:space-between;gap:10px;
+    padding-top:12px;margin-top:2px;border-top:1px dashed var(--border);
+    font-size:12.5px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--green);
+  }
+  .nb-total-line-neg{color:var(--red);}
+  .nb-bracket{width:1px;align-self:stretch;background:linear-gradient(var(--border-soft),var(--border),var(--border-soft));min-height:120px;}
+  .nb-center{align-items:center;text-align:center;gap:6px;}
+  .nb-networth-label{font-size:12.5px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:650;}
+  .nb-networth-value{
+    font-family:var(--serif);font-size:40px;font-weight:600;color:var(--accent2);
+    letter-spacing:-.5px;line-height:1.1;
+  }
+  @media(max-width:820px){
+    .nb-body{grid-template-columns:1fr;}
+    .nb-bracket{width:auto;height:1px;min-height:0;background:linear-gradient(90deg,var(--border-soft),var(--border),var(--border-soft));}
+    .nb-center{order:-1;padding-bottom:10px;border-bottom:1px solid var(--border);margin-bottom:6px;}
+    .nb-networth-value{font-size:34px;}
+  }
+  @media(max-width:480px){
+    .networth-box{padding:24px 18px;}
+  }
+
+  /* ===== Estado de Resultados: filas tipo waterfall ===== */
+  .is-waterfall{display:flex;flex-direction:column;}
+  .is-row{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px dashed var(--border-soft);font-size:14px;}
+  .is-row:last-child{border-bottom:none;}
+  .is-row .val{font-weight:650;color:var(--text);white-space:nowrap;}
+  .is-row .val.pos{color:var(--green);}
+  .is-row .val.neg{color:var(--red);}
+  .is-row.total{border-top:1px solid var(--border);border-bottom:none;margin-top:4px;padding-top:12px;font-weight:700;}
+  .is-row.total .val{font-size:15.5px;}
+  .is-row .pct-note{color:var(--muted);font-weight:500;font-size:12.5px;margin-left:6px;}
+
   /* grid & cards */
   .grid{display:grid;gap:14px;}
   .grid.cols-3{grid-template-columns:repeat(3,1fr);}
@@ -500,6 +565,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     <button data-view="entidades"><svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6"/></svg>Por Entidad</button>
     <button data-view="historico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M6 16l4-6 4 3 5-8"/></svg>Histórico</button>
     <button data-view="deuda"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 9.5c0-1.4 1.3-2.5 3-2.5s3 1.1 3 2.4c0 3.1-6 1.6-6 4.7 0 1.3 1.3 2.4 3 2.4s3-1.1 3-2.5"/></svg>Deuda &amp; Gastos</button>
+    <button data-view="is"><svg class="icon" viewBox="0 0 24 24"><path d="M4 19h16"/><path d="M7 19V9M12 19V5M17 19v-7"/></svg>Estado de Resultados</button>
     <button data-view="admin" data-admin-only="1" style="display:none;"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.04-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.04 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.04z"/></svg>Administración</button>
   </nav>
 
@@ -516,17 +582,72 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   <main id="main-content" style="display:none;">
 
-    <!-- ========== RESUMEN ========== -->
+    <!-- ========== RESUMEN (landing) ========== -->
     <section id="view-resumen" class="view active">
-      <div class="hero" id="hero-networth">
-        <div class="hero-main">
-          <div class="hero-label">Patrimonio Neto Total</div>
-          <div class="hero-value" id="hero-value">—</div>
-          <div class="hero-sub" id="hero-sub"></div>
+      <div class="networth-box" id="networth-box">
+        <div class="nb-header">
+          <div class="nb-title">Patrimonio Familiar Consolidado</div>
+          <div class="nb-date" id="nb-date">—</div>
         </div>
-        <div class="hero-spark"><canvas id="chart-hero-spark"></canvas></div>
-      </div>
+        <div class="nb-body">
+          <div class="nb-col nb-assets">
+            <div class="nb-col-label">Activos</div>
+            <div class="nb-row">
+              <div class="nb-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 4l9 6.5"/><path d="M5 10.5V20h14v-9.5"/><path d="M9 20v-6h6v6"/></svg></div>
+              <div class="nb-row-info">
+                <div class="nb-row-label">Bancos</div>
+                <div class="nb-row-value" id="nb-banks">—</div>
+              </div>
+            </div>
+            <div class="nb-row">
+              <div class="nb-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 21V9l6-4 6 4v12"/><path d="M16 21v-8l4 2v6"/><path d="M9 21v-4h2v4"/></svg></div>
+              <div class="nb-row-info">
+                <div class="nb-row-label">Bienes Raíces</div>
+                <div class="nb-row-value" id="nb-realestate">—</div>
+              </div>
+            </div>
+            <div class="nb-row">
+              <div class="nb-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><circle cx="10" cy="10.5" r="1.6"/><path d="M6.5 17 11 12.5l2.5 2.5L18 10.5"/></svg></div>
+              <div class="nb-row-info">
+                <div class="nb-row-label">Arte &amp; Otros</div>
+                <div class="nb-row-value" id="nb-art">—</div>
+              </div>
+            </div>
+            <div class="nb-total-line">
+              <span>Total Activos</span>
+              <span id="nb-total-assets">—</span>
+            </div>
+          </div>
 
+          <div class="nb-bracket nb-bracket-assets" aria-hidden="true"></div>
+
+          <div class="nb-col nb-center">
+            <div class="nb-networth-label">Patrimonio Neto Total</div>
+            <div class="nb-networth-value" id="nb-networth-value">—</div>
+          </div>
+
+          <div class="nb-bracket nb-bracket-liab" aria-hidden="true"></div>
+
+          <div class="nb-col nb-liab">
+            <div class="nb-col-label nb-col-label-neg">Pasivos</div>
+            <div class="nb-row">
+              <div class="nb-icon nb-icon-neg" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 4 6.5 12 10l8-3.5Z"/><path d="M4 6.5v11L12 21l8-3.5v-11"/><path d="M12 10v11"/></svg></div>
+              <div class="nb-row-info">
+                <div class="nb-row-label">Préstamos</div>
+                <div class="nb-row-value" id="nb-loans">—</div>
+              </div>
+            </div>
+            <div class="nb-total-line nb-total-line-neg">
+              <span>Total Pasivos</span>
+              <span id="nb-total-liab">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ========== POR ENTIDAD ========== -->
+    <section id="view-entidades" class="view">
       <div class="grid cols-3" id="kpi-grid"></div>
 
       <div class="grid cols-2" style="margin-top:14px;">
@@ -543,15 +664,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         </div>
       </div>
 
-      <div class="panel" id="info-chips-panel">
+      <div class="panel" id="info-chips-panel" style="margin-top:14px;">
         <h3>Información de Mercado</h3>
         <div class="grid cols-4" id="info-chips"></div>
       </div>
-    </section>
 
-    <!-- ========== POR ENTIDAD ========== -->
-    <section id="view-entidades" class="view">
-      <div class="panel">
+      <div class="panel" style="margin-top:14px;">
         <h3>Comparativa de Balances</h3>
         <div class="chart-wrap" style="height:260px;"><canvas id="chart-entidad-balances"></canvas></div>
       </div>
@@ -629,6 +747,26 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       </div>
     </section>
 
+    <!-- ========== ESTADO DE RESULTADOS (IS) ========== -->
+    <section id="view-is" class="view">
+      <div class="card section-title"><h2>Estado de Resultados</h2><span id="is-asof-label"></span></div>
+      <div class="grid cols-2">
+        <div class="panel">
+          <h3 id="is-ytd-title">YTD</h3>
+          <div class="is-waterfall" id="is-ytd-rows"></div>
+        </div>
+        <div class="panel">
+          <h3>Mes Actual</h3>
+          <div class="is-waterfall" id="is-monthly-rows"></div>
+        </div>
+      </div>
+
+      <div class="card section-title"><h2>Comparativo Anual</h2></div>
+      <div class="panel">
+        <div class="table-scroll"><table id="is-annual-table"></table></div>
+      </div>
+    </section>
+
     <!-- ========== ADMINISTRACIÓN (solo admin) ========== -->
     <section id="view-admin" class="view">
       <div class="card section-title"><h2>Usuarios con Acceso</h2><span>Cambios locales — usa "Descargar archivo actualizado" y súbelo a GitHub para publicarlos</span></div>
@@ -671,6 +809,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 <label class="checkbox-chip"><input type="checkbox" value="entidades" checked> Por Entidad</label>
                 <label class="checkbox-chip"><input type="checkbox" value="historico" checked> Histórico</label>
                 <label class="checkbox-chip"><input type="checkbox" value="deuda" checked> Deuda &amp; Gastos</label>
+                <label class="checkbox-chip"><input type="checkbox" value="is" checked> Estado de Resultados</label>
               </div>
             </div>
             <div style="display:flex;gap:8px;">
@@ -1169,12 +1308,71 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return { annual, currentYear, yearBlocks };
   }
 
+  // ===================================================================
+  // ESTADO DE RESULTADOS (Income Statement) -- 'IS' sheet (YTD + mes actual)
+  // and 'BS & IS' sheet (comparativo anual)
+  // ===================================================================
+  function parseIS(wb) {
+    const ws = wb.Sheets['IS'];
+    if (!ws) return null;
+    const ytdLabel = getCell(ws, 2, 2); // B2, e.g. 'YTD 2026'
+    return {
+      ytdLabel: ytdLabel != null ? String(ytdLabel) : null,
+      ytd: {
+        initialBalance: safe(getCell(ws, 6, 4)),               // D6
+        interestDividends: safe(getCell(ws, 7, 4)),            // D7
+        interestDividendsPct: safe(getCell(ws, 7, 5)),          // E7
+        capitalGains: safe(getCell(ws, 8, 4)),                  // D8
+        capitalGainsPct: safe(getCell(ws, 8, 5)),                // E8
+        expensesTransfers: safe(getCell(ws, 9, 4)),              // D9
+        expensesTransfersPct: safe(getCell(ws, 9, 5)),           // E9
+        wealthIncrease: safe(getCell(ws, 10, 4)),                 // D10
+        wealthIncreasePct: safe(getCell(ws, 10, 5))               // E10
+      },
+      monthly: {
+        income: safe(getCell(ws, 8, 10)),        // J8
+        incomePct: safe(getCell(ws, 8, 11)),      // K8
+        expenses: safe(getCell(ws, 9, 10)),       // J9
+        netGain: safe(getCell(ws, 10, 10)),        // J10
+        netGainPct: safe(getCell(ws, 10, 11))      // K10
+      }
+    };
+  }
+
+  function parseAnnualIS(wb) {
+    const ws = wb.Sheets['BS & IS'];
+    if (!ws) return [];
+    const YEAR_COLS = [{ year: getCell(ws, 2, 4), col: 4 }, { year: getCell(ws, 2, 5), col: 5 }, { year: getCell(ws, 2, 6), col: 6 }];
+    return YEAR_COLS.filter(yc => typeof yc.year === 'number').map(({ year, col }) => {
+      // Row 32 ('GASTOS' total) is blank for the first year column in the source file --
+      // its cached formula value lands one row lower (row 36) instead. Fall back to it so
+      // the total is still shown correctly for that year.
+      const gastosPrimary = safe(getCell(ws, 32, col));
+      const gastosFallback = safe(getCell(ws, 36, col));
+      return {
+        year,
+        ingresos: safe(getCell(ws, 24, col)),
+        cashflow: safe(getCell(ws, 25, col)),
+        cashflowJPM: safe(getCell(ws, 26, col)),
+        cashflowUBS: safe(getCell(ws, 27, col)),
+        realizedGainLoss: safe(getCell(ws, 28, col)),
+        realizedGainLossJPM: safe(getCell(ws, 29, col)),
+        realizedGainLossUBS: safe(getCell(ws, 30, col)),
+        gastos: gastosPrimary !== null ? gastosPrimary : gastosFallback,
+        gastosOperativos: safe(getCell(ws, 33, col)),
+        gastosFinanciamiento: safe(getCell(ws, 34, col)),
+        dietaDirectores: safe(getCell(ws, 38, col)),
+        gananciaNeta: safe(getCell(ws, 39, col))
+      };
+    });
+  }
+
   function parseAll(wb) {
     const warnings = [];
     const result = {
       meta: null, dashboard: null, banks: null, loan: null, historicalAnnual: null,
       netBalancesMonthly: null, performanceMonthly: null, bankDetails: {}, expenses: null,
-      consolidatedMonthlySeries: null, bankMonthlySeries: {}
+      consolidatedMonthlySeries: null, bankMonthlySeries: {}, incomeStatement: null, incomeStatementAnnual: null
     };
     function tryStep(name, fn) {
       try { return fn(); } catch (e) { warnings.push(name + ': ' + e.message); return null; }
@@ -1188,6 +1386,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     result.performanceMonthly = tryStep('performanceMonthly', () => parsePerformanceMonthly(wb));
     result.expenses = tryStep('expenses', () => parseExpenses(wb));
     result.consolidatedMonthlySeries = tryStep('consolidatedMonthlySeries', () => parseConsolidatedMonthlySeries(wb));
+    result.incomeStatement = tryStep('incomeStatement', () => parseIS(wb));
+    result.incomeStatementAnnual = tryStep('incomeStatementAnnual', () => parseAnnualIS(wb));
     const asOf = result.meta && result.meta.asOf;
     if (result.banks && asOf) {
       for (const row of result.banks.rows) {
@@ -1321,6 +1521,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     parseAll, parseMeta, parseDashboard, parseBanks, parseLoan,
     parseHistoricalAnnual, parseNetBalancesMonthly, parsePerformanceMonthly,
     parseBankDetail, parseExpenses, parseBankMonthlySeries, parseConsolidatedMonthlySeries,
+    parseIS, parseAnnualIS,
     listAvailableDates, buildSnapshotForDate,
     BANK_SHEET_MAP, LOAN_ROW_LABELS,
     _internal: { colToLetter, letterToCol, buildDateColMap, findColForYearMonth }
@@ -1454,8 +1655,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
   }
   function initLock(){
+    // Security requirement: the session must NOT survive the user closing the tab/app.
+    // We intentionally only check sessionStorage here (not localStorage) so every fresh
+    // browser/app launch requires entering credentials again. Any legacy session id that
+    // was previously persisted to localStorage (from before this change) is proactively
+    // cleared below so it can never silently auto-login a returning visitor.
+    try { localStorage.removeItem(SESSION_KEY); } catch(e){}
     let savedUserId = null;
-    try { savedUserId = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY); } catch(e){}
+    try { savedUserId = sessionStorage.getItem(SESSION_KEY); } catch(e){}
     const form = document.getElementById('lock-form');
     const userInput = document.getElementById('lock-username');
     const passInput = document.getElementById('lock-password');
@@ -1481,7 +1688,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           return;
         }
         currentUser = user;
-        try { localStorage.setItem(SESSION_KEY, user.id); } catch(err){}
+        try { sessionStorage.setItem(SESSION_KEY, user.id); } catch(err){}
         showApp();
       } else {
         error.textContent = 'Usuario o contraseña incorrectos. Intenta de nuevo.';
@@ -1781,52 +1988,32 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // ===================================================================
   // RENDER: HERO (Patrimonio Neto Total)
   // ===================================================================
-  function renderHero(){
-    if (!activeView) return;
-    const heroValEl = document.getElementById('hero-value');
-    const heroSubEl = document.getElementById('hero-sub');
-    if (!heroValEl) return;
-    const d = activeView.dashboard, b = activeView.banks;
-    heroValEl.textContent = fmtUSD(d && d.netWorth);
-
-    const series = (state.netBalancesMonthly || []).filter(r =>
-      r.date.getFullYear() < activeView.year ||
-      (r.date.getFullYear() === activeView.year && (r.date.getMonth()+1) <= activeView.month)
-    );
-    const last = series[series.length-1];
-    const prev = series[series.length-2];
-    let momBadge = '';
-    if (last && prev && prev.netWorthWithRE) {
-      const deltaPct = (last.netWorthWithRE - prev.netWorthWithRE) / prev.netWorthWithRE;
-      momBadge = `<span class="badge ${pctClass(deltaPct)}">${trendArrowSpan(deltaPct)}${fmtPct(deltaPct)} vs. mes anterior</span>`;
-    }
-    const ytdBadge = b ? `<span class="badge ${pctClass(b.total.ytdReturnNet)}">${trendArrowSpan(b.total.ytdReturnNet)}YTD ${fmtPct(b.total.ytdReturnNet)}</span>` : '';
-    heroSubEl.innerHTML = [momBadge, ytdBadge, `Al ${esc(monthYearLabel(activeView.year, activeView.month))}`].filter(Boolean).join(' ');
-
-    const spark = series.slice(-24);
-    if (spark.length >= 2) {
-      makeChart('chart-hero-spark', {
-        type:'line',
-        data:{
-          labels: spark.map(()=>''),
-          datasets:[{ data: spark.map(r=>r.netWorthWithRE), borderColor:'#d4b06a', backgroundColor:'rgba(212,176,106,.16)', fill:true, tension:.35, pointRadius:0, borderWidth:2 }]
-        },
-        options:{
-          responsive:true, maintainAspectRatio:false,
-          plugins:{ legend:{display:false}, tooltip:{enabled:false} },
-          scales:{ x:{display:false}, y:{display:false} },
-          elements:{ line:{ borderJoinStyle:'round', borderCapStyle:'round' } }
-        }
-      });
-    }
-  }
-
   // ===================================================================
-  // RENDER: RESUMEN
+  // RENDER: RESUMEN (landing page -- solo el cuadro resumen grande)
   // ===================================================================
   function renderResumen(){
     if (!activeView) return;
-    renderHero();
+    const d = activeView.dashboard;
+    const dateEl = document.getElementById('nb-date');
+    if (dateEl) dateEl.textContent = 'Al ' + monthYearLabel(activeView.year, activeView.month);
+    setText('nb-banks', fmtUSD(d && d.banksTotal));
+    setText('nb-realestate', fmtUSD(d && d.realEstate));
+    setText('nb-art', fmtUSD(d && d.artOthers));
+    setText('nb-total-assets', fmtUSD(d && d.totalAssets));
+    setText('nb-networth-value', fmtUSD(d && d.netWorth));
+    setText('nb-loans', fmtUSD(d && d.totalLiabilities));
+    setText('nb-total-liab', fmtUSD(d && d.totalLiabilities));
+  }
+  function setText(id, val){
+    const el = document.getElementById(id);
+    if (el) el.textContent = val;
+  }
+
+  // ===================================================================
+  // RENDER: POR ENTIDAD (incluye el consolidado que antes vivía en Resumen)
+  // ===================================================================
+  function renderConsolidatedPanels(){
+    if (!activeView) return;
     const d = activeView.dashboard, b = activeView.banks, meta = state.meta;
     const viewDateLabel = monthYearLabel(activeView.year, activeView.month);
     const kpiGrid = document.getElementById('kpi-grid');
@@ -1913,6 +2100,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // ===================================================================
   function renderEntidades(){
     if (!activeView) return;
+    renderConsolidatedPanels();
     const b = activeView.banks;
     const loan = activeView.loanDetailAvailable ? activeView.loan : null;
     const meta = state.meta;
@@ -2059,6 +2247,82 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // ===================================================================
   // RENDER: DEUDA & GASTOS
   // ===================================================================
+  // ===================================================================
+  // RENDER: ESTADO DE RESULTADOS (IS)
+  // ===================================================================
+  function renderIS(){
+    const is = state.incomeStatement;
+    const annual = state.incomeStatementAnnual || [];
+    const asOfEl = document.getElementById('is-asof-label');
+    if (asOfEl) asOfEl.textContent = state.meta && state.meta.asOf ? ('Al ' + fmtDate(state.meta.asOf)) : '';
+
+    const ytdTitle = document.getElementById('is-ytd-title');
+    if (ytdTitle) ytdTitle.textContent = (is && is.ytdLabel) ? is.ytdLabel : 'YTD';
+
+    function row(label, value, pct, opts){
+      opts = opts || {};
+      const cls = opts.total ? 'is-row total' : 'is-row';
+      const valCls = pctClass(value) === 'pos' ? 'pos' : (pctClass(value) === 'neg' ? 'neg' : '');
+      const pctNote = (pct !== null && pct !== undefined && !isNaN(pct)) ? `<span class="pct-note">(${fmtPctPlain(pct,1)})</span>` : '';
+      return `<div class="${cls}"><span>${esc(label)}</span><span class="val ${valCls}">${esc(fmtUSD(value))}${pctNote}</span></div>`;
+    }
+
+    const ytdRowsEl = document.getElementById('is-ytd-rows');
+    if (ytdRowsEl) {
+      if (is && is.ytd) {
+        ytdRowsEl.innerHTML = [
+          row('Balance Inicial', is.ytd.initialBalance),
+          row('+ Intereses y Dividendos', is.ytd.interestDividends, is.ytd.interestDividendsPct),
+          row('+ Ganancias de Capital', is.ytd.capitalGains, is.ytd.capitalGainsPct),
+          row('− Gastos y Transferencias', is.ytd.expensesTransfers, is.ytd.expensesTransfersPct),
+          row('= Aumento de Patrimonio', is.ytd.wealthIncrease, is.ytd.wealthIncreasePct, { total:true })
+        ].join('');
+      } else {
+        ytdRowsEl.innerHTML = '<div class="is-row"><span>Sin datos disponibles.</span></div>';
+      }
+    }
+
+    const monthlyRowsEl = document.getElementById('is-monthly-rows');
+    if (monthlyRowsEl) {
+      if (is && is.monthly) {
+        monthlyRowsEl.innerHTML = [
+          row('Ingresos al Mes', is.monthly.income),
+          row('Gastos al Mes', is.monthly.expenses),
+          row('= Ganancia Neta al Mes', is.monthly.netGain, is.monthly.netGainPct, { total:true })
+        ].join('');
+      } else {
+        monthlyRowsEl.innerHTML = '<div class="is-row"><span>Sin datos disponibles.</span></div>';
+      }
+    }
+
+    const tbl = document.getElementById('is-annual-table');
+    if (tbl) {
+      if (annual.length) {
+        const years = annual.map(a => a.year);
+        function dataRow(label, key, opts){
+          opts = opts || {};
+          const cells = annual.map(a => `<td>${esc(fmtUSD(a[key]))}</td>`).join('');
+          return `<tr${opts.total ? ' class="total-row"' : ''}><td>${esc(label)}</td>${cells}</tr>`;
+        }
+        tbl.innerHTML = `
+          <thead><tr><th>Concepto</th>${years.map(y => `<th>${y}</th>`).join('')}</tr></thead>
+          <tbody>
+            ${dataRow('Ingresos', 'ingresos', { total:true })}
+            ${dataRow('Cashflow (JPM + UBS)', 'cashflow')}
+            ${dataRow('Ganancias/Pérdidas Realizadas', 'realizedGainLoss')}
+            ${dataRow('Gastos', 'gastos', { total:true })}
+            ${dataRow('Gastos Operativos', 'gastosOperativos')}
+            ${dataRow('Gastos de Financiamiento', 'gastosFinanciamiento')}
+            ${dataRow('Dieta a Directores', 'dietaDirectores')}
+            ${dataRow('Ganancia Neta', 'gananciaNeta', { total:true })}
+          </tbody>
+        `;
+      } else {
+        tbl.innerHTML = '<thead><tr><th>Concepto</th></tr></thead><tbody><tr><td>Sin datos disponibles.</td></tr></tbody>';
+      }
+    }
+  }
+
   function renderDeudaGastos(){
     if (!activeView) return;
     renderLoanSection();
@@ -2305,6 +2569,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderEntidades();
     renderHistorico();
     renderDeudaGastos();
+    renderIS();
   }
 
   function switchView(view){
