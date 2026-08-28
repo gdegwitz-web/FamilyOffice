@@ -362,6 +362,23 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     background:rgba(255,255,255,.08);color:var(--text);
     box-shadow:inset 0 0 0 1px var(--border);
   }
+  /* Legend below bank bar charts: maps each bar's color to its bank logo.
+     Used instead of drawing logo images directly onto the Chart.js canvas --
+     in-canvas axis image drawing proved fragile (misalignment, blurriness,
+     clipping) across two attempts, so labels/logos live in normal DOM flow here. */
+  .bank-chart-legend{
+    display:flex;flex-wrap:wrap;gap:8px 14px;margin-top:12px;padding-top:12px;
+    border-top:1px solid var(--border);
+  }
+  .bank-chart-legend-item{
+    display:flex;align-items:center;gap:7px;font-size:12px;color:var(--muted);
+  }
+  .bank-chart-legend-item .dot{
+    width:9px;height:9px;border-radius:50%;flex:none;
+  }
+  .bank-chart-legend-item .val{
+    font-variant-numeric:tabular-nums;color:var(--text);font-weight:600;
+  }
   .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 9px;border-radius:999px;font-size:12.5px;font-weight:700;}
   .badge.pos{background:var(--green-soft);color:var(--green);}
   .badge.neg{background:var(--red-soft);color:var(--red);}
@@ -727,6 +744,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <div class="panel">
           <h3>Balance por Banco</h3>
           <div class="chart-wrap" style="height:280px;"><canvas id="chart-bank-balances"></canvas></div>
+          <div class="bank-chart-legend" id="legend-bank-balances"></div>
         </div>
       </div>
 
@@ -738,6 +756,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       <div class="panel" style="margin-top:14px;">
         <h3>Comparativa de Balances</h3>
         <div class="chart-wrap" style="height:260px;"><canvas id="chart-entidad-balances"></canvas></div>
+        <div class="bank-chart-legend" id="legend-entidad-balances"></div>
       </div>
       <div class="card section-title"><h2>Detalle por Institución</h2></div>
       <div class="grid cols-3" id="bank-cards-grid"></div>
@@ -2255,15 +2274,24 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       data:{ labels: activeBanks.map(r=>r.name), datasets:[{ data: activeBanks.map(r=>r.balance), backgroundColor: BANK_COLORS, borderRadius:6 }] },
       options:{
         indexAxis:'y',
-        layout:{ padding:{ left:52 } },
         plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => fmtUSD(ctx.raw) } } },
         scales:{
           x:{ ticks:{ color:CHART_DEFAULTS_TEXT, callback:v=>fmtUSDCompact(v), maxTicksLimit:5 }, grid:{ color:CHART_GRID } },
-          y:{ ticks:{ color:CHART_DEFAULTS_TEXT, callback:(v,i)=> BANK_LOGO_MAP[activeBanks[i] ? activeBanks[i].name : ''] ? '' : (activeBanks[i] ? activeBanks[i].name : '') }, grid:{ display:false } }
+          y:{ ticks:{ display:false }, grid:{ display:false } }
         }
-      },
-      plugins:[bankAxisLogoPlugin]
+      }
     });
+    // Bank names/logos live in a normal HTML legend below the chart instead of being
+    // drawn onto the canvas -- in-canvas axis image drawing proved fragile (misaligned,
+    // blurry, clipped) across two attempts, so this uses the already-reliable
+    // bankLogoChip() DOM pattern used elsewhere in the app.
+    document.getElementById('legend-bank-balances').innerHTML = activeBanks.map((r,i) => `
+      <div class="bank-chart-legend-item">
+        <span class="dot" style="background:${BANK_COLORS[i % BANK_COLORS.length]}"></span>
+        ${bankLogoChip(r.name, { height:18 })}
+        <span class="val">${fmtUSDCompact(r.balance)}</span>
+      </div>
+    `).join('');
 
     // info chips
     const chips = [
@@ -2304,16 +2332,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       type:'bar',
       data:{ labels: active.map(r=>r.name), datasets:[{ label:'Balance', data: active.map(r=>r.balance), backgroundColor: BANK_COLORS, borderRadius:6 }] },
       options:{
-        layout:{ padding:{ bottom:30 } },
         plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => fmtUSD(ctx.raw) } } },
         scales:{
           y:{ ticks:{ color:CHART_DEFAULTS_TEXT, callback:v=>fmtUSDCompact(v), maxTicksLimit:5 }, grid:{ color:CHART_GRID } },
-          x:{ ticks:{ color:CHART_DEFAULTS_TEXT, maxRotation:45, minRotation:0, autoSkip:true,
-              callback:(v,i)=> BANK_LOGO_MAP[active[i] ? active[i].name : ''] ? '' : (active[i] ? active[i].name : '') }, grid:{ display:false } }
+          x:{ ticks:{ display:false }, grid:{ display:false } }
         }
-      },
-      plugins:[bankAxisLogoPlugin]
+      }
     });
+    document.getElementById('legend-entidad-balances').innerHTML = active.map((r,i) => `
+      <div class="bank-chart-legend-item">
+        <span class="dot" style="background:${BANK_COLORS[i % BANK_COLORS.length]}"></span>
+        ${bankLogoChip(r.name, { height:18 })}
+        <span class="val">${fmtUSDCompact(r.balance)}</span>
+      </div>
+    `).join('');
 
     const loanByName = {};
     (loan ? loan.rows : []).forEach(r => loanByName[r.name] = r);
@@ -2505,45 +2537,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   // Floating-bar cascade chart: Intereses y Dividendos -> Ganancias de Capital ->
   // Gastos y Transferencias -> Aumento Patrimonio, mirroring the YTD box above it visually.
-  // Draws each bank's logo image at its category-axis tick instead of plain text, for
-  // charts that pass plugins:[bankAxisLogoPlugin]. Falls back to the normal text tick for
-  // any bank without a logo available (see BANK_LOGO_MAP / getBankLogoImage). Images are
-  // loaded lazily/async; the plugin schedules a redraw once each one finishes loading.
-  // Draws each bank's logo image at its category-axis tick instead of plain text. The
-  // reserved drawing room comes from options.layout.padding (set on the chart itself, see
-  // the two chart configs below) rather than trying to resize the axis from a plugin hook --
-  // axis auto-sizing collapses to ~0 once the tick text callback returns '' for these
-  // banks, so layout.padding is the reliable way to guarantee empty pixels to draw into.
-  const bankAxisLogoPlugin = {
-    id: 'bankAxisLogos',
-    afterDraw(chart){
-      const catAxis = chart.options.indexAxis === 'y' ? 'y' : 'x';
-      const scale = chart.scales[catAxis];
-      const labels = chart.data.labels || [];
-      if (!scale || !labels.length) return;
-      const ctx = chart.ctx;
-      const area = chart.chartArea;
-      const maxW = catAxis === 'x' ? 46 : 42, maxH = 18;
-      labels.forEach((name, i) => {
-        const img = getBankLogoImage(name);
-        if (!img) return;
-        if (!img.complete || !img.naturalWidth) {
-          if (!img._mvRedraw) { img._mvRedraw = true; img.addEventListener('load', () => chart.draw()); }
-          return;
-        }
-        const pos = scale.getPixelForTick(i);
-        let w = img.naturalWidth, h = img.naturalHeight;
-        const ratio = Math.min(maxW / w, maxH / h, 1);
-        w *= ratio; h *= ratio;
-        let x, y;
-        if (catAxis === 'x') { x = pos - w / 2; y = area.bottom + 8; }
-        else { x = area.left - w - 8; y = pos - h / 2; }
-        ctx.save();
-        ctx.drawImage(img, x, y, w, h);
-        ctx.restore();
-      });
-    }
-  };
 
   const waterfallLabelsPlugin = {
     id: 'waterfallLabels',
