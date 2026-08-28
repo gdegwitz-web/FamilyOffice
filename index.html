@@ -2255,6 +2255,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       data:{ labels: activeBanks.map(r=>r.name), datasets:[{ data: activeBanks.map(r=>r.balance), backgroundColor: BANK_COLORS, borderRadius:6 }] },
       options:{
         indexAxis:'y',
+        layout:{ padding:{ left:52 } },
         plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => fmtUSD(ctx.raw) } } },
         scales:{
           x:{ ticks:{ color:CHART_DEFAULTS_TEXT, callback:v=>fmtUSDCompact(v), maxTicksLimit:5 }, grid:{ color:CHART_GRID } },
@@ -2303,6 +2304,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       type:'bar',
       data:{ labels: active.map(r=>r.name), datasets:[{ label:'Balance', data: active.map(r=>r.balance), backgroundColor: BANK_COLORS, borderRadius:6 }] },
       options:{
+        layout:{ padding:{ bottom:30 } },
         plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => fmtUSD(ctx.raw) } } },
         scales:{
           y:{ ticks:{ color:CHART_DEFAULTS_TEXT, callback:v=>fmtUSDCompact(v), maxTicksLimit:5 }, grid:{ color:CHART_GRID } },
@@ -2507,22 +2509,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // charts that pass plugins:[bankAxisLogoPlugin]. Falls back to the normal text tick for
   // any bank without a logo available (see BANK_LOGO_MAP / getBankLogoImage). Images are
   // loaded lazily/async; the plugin schedules a redraw once each one finishes loading.
+  // Draws each bank's logo image at its category-axis tick instead of plain text. The
+  // reserved drawing room comes from options.layout.padding (set on the chart itself, see
+  // the two chart configs below) rather than trying to resize the axis from a plugin hook --
+  // axis auto-sizing collapses to ~0 once the tick text callback returns '' for these
+  // banks, so layout.padding is the reliable way to guarantee empty pixels to draw into.
   const bankAxisLogoPlugin = {
     id: 'bankAxisLogos',
-    // Reserve extra room on the category axis so the images have space to draw into, even
-    // though their text tick labels are blanked out (see the ticks.callback on each chart).
-    afterFit(scale){
-      const catAxis = scale.chart.options.indexAxis === 'y' ? 'y' : 'x';
-      if (scale.axis !== catAxis) return;
-      if (catAxis === 'x') scale.height += 20; else scale.width += 18;
-    },
     afterDraw(chart){
       const catAxis = chart.options.indexAxis === 'y' ? 'y' : 'x';
       const scale = chart.scales[catAxis];
       const labels = chart.data.labels || [];
       if (!scale || !labels.length) return;
       const ctx = chart.ctx;
-      const maxW = catAxis === 'x' ? 44 : 40, maxH = 16;
+      const area = chart.chartArea;
+      const maxW = catAxis === 'x' ? 46 : 42, maxH = 18;
       labels.forEach((name, i) => {
         const img = getBankLogoImage(name);
         if (!img) return;
@@ -2535,8 +2536,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         const ratio = Math.min(maxW / w, maxH / h, 1);
         w *= ratio; h *= ratio;
         let x, y;
-        if (catAxis === 'x') { x = pos - w / 2; y = scale.top + 8; }
-        else { x = scale.left - w - 10; y = pos - h / 2; }
+        if (catAxis === 'x') { x = pos - w / 2; y = area.bottom + 8; }
+        else { x = area.left - w - 8; y = pos - h / 2; }
         ctx.save();
         ctx.drawImage(img, x, y, w, h);
         ctx.restore();
