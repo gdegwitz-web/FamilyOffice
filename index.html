@@ -99,7 +99,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     --card:#121a2c; --card2:#151f35; --card-hover:#182238; --border:#212c46; --border-soft:rgba(255,255,255,.06);
     --text:#eef1f8; --muted:#8b93ab; --muted2:#5f6883;
     --accent:#d4b06a; --accent2:#f0cf8a; --accent-soft:rgba(212,176,106,.13); --accent-line:rgba(212,176,106,.35);
-    --blue:#6c9bff; --blue-soft:rgba(108,155,255,.13);
+    --blue:#6c9bff; --blue-soft:rgba(108,155,255,.13); --teal:#35c2b0;
     --green:#3ddb9b; --green-soft:rgba(61,219,155,.13);
     --red:#ff7a7a; --red-soft:rgba(255,122,122,.13);
     --purple:#a78bfa; --purple-soft:rgba(167,139,250,.13);
@@ -129,8 +129,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   ::selection{background:var(--accent-soft);color:var(--accent2);}
   body::before{
     content:"";position:fixed;top:0;left:0;right:0;height:4px;z-index:1000;
-    background:linear-gradient(90deg,var(--green),var(--accent) 45%,var(--blue) 85%,var(--purple));
-    box-shadow:0 0 14px -2px rgba(212,176,106,.5);
+    background:linear-gradient(90deg,var(--green),var(--teal) 50%,var(--blue));
+    box-shadow:0 0 14px -2px rgba(108,155,255,.45);
   }
   svg.icon{width:16px;height:16px;flex:none;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;vertical-align:-3px;}
 
@@ -155,7 +155,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   .brand .mark svg, .lock-mark svg{width:100%;height:100%;display:block;}
   .brand h1{
-    font-family:var(--serif);font-size:21px;margin:0;font-weight:600;letter-spacing:.2px;color:var(--text);
+    font-family:var(--sans);font-size:19px;margin:0;font-weight:800;
+    letter-spacing:0.4px;text-transform:uppercase;color:var(--text);
+    background:linear-gradient(120deg,var(--green) 0%,var(--teal) 55%,var(--blue) 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
   }
   .brand p{margin:3px 0 0;color:var(--muted);font-size:12px;letter-spacing:.3px;}
   .header-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:relative;}
@@ -212,7 +215,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   nav.tabs button.active::after{
     content:"";position:absolute;left:14px;right:14px;bottom:3px;height:2.5px;border-radius:2px;
-    background:linear-gradient(90deg,var(--green),var(--accent));
+    background:linear-gradient(90deg,var(--green),var(--blue));
   }
   nav.tabs button:hover:not(.active){color:var(--text);background:rgba(255,255,255,.035);}
   nav.tabs button svg.icon{opacity:.85;}
@@ -272,7 +275,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   .networth-box::before{
     content:"";position:absolute;top:0;left:0;right:0;height:5px;border-radius:var(--radius) var(--radius) 0 0;
-    background:linear-gradient(90deg,var(--green),var(--accent) 50%,var(--blue));
+    background:linear-gradient(90deg,var(--green),var(--teal) 50%,var(--blue));
   }
   .nb-header{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:26px;position:relative;flex-wrap:wrap;}
   .nb-title{font-family:var(--serif);font-size:19px;font-weight:600;color:var(--text);}
@@ -343,7 +346,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
   .card::before{
     content:"";position:absolute;left:0;top:0;bottom:0;width:3px;
-    background:var(--accent-bar,linear-gradient(var(--green),var(--accent)));
+    background:var(--accent-bar,linear-gradient(var(--green),var(--blue)));
   }
   .card:hover{transform:translateY(-2px);box-shadow:var(--shadow-lift);border-color:#2a3654;}
   .card h3{
@@ -401,7 +404,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .panel h3{margin:0 0 14px;font-size:14.5px;font-weight:650;display:flex;align-items:center;gap:8px;}
   .panel h3::before{
     content:"";width:7px;height:7px;border-radius:50%;flex:none;
-    background:linear-gradient(135deg,var(--green),var(--accent));
+    background:linear-gradient(135deg,var(--green),var(--blue));
     box-shadow:0 0 8px -1px rgba(61,219,155,.7);
   }
   .panel-flex{display:flex;gap:20px;flex-wrap:wrap;}
@@ -575,7 +578,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     display:flex;align-items:center;justify-content:center;
     margin:0 auto 18px;box-shadow:0 8px 20px -8px rgba(15,143,95,.6), inset 0 1px 0 rgba(255,255,255,.25);
   }
-  .lock-card h2{margin:0 0 6px;font-size:19px;font-family:var(--serif);font-weight:600;}
+  .lock-card h2{
+    margin:0 0 6px;font-size:17px;font-family:var(--sans);font-weight:800;
+    letter-spacing:0.4px;text-transform:uppercase;color:var(--text);
+    background:linear-gradient(120deg,var(--green) 0%,var(--teal) 55%,var(--blue) 100%);
+    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+  }
   .lock-card p{margin:0 0 22px;color:var(--muted);font-size:13px;line-height:1.55;}
   #lock-form{display:flex;flex-direction:column;gap:10px;}
   #lock-username, #lock-password{
@@ -594,8 +602,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <defs>
           <linearGradient id="mvGradLock" x1="8%" y1="0%" x2="95%" y2="100%">
             <stop offset="0%" stop-color="#3ddb9b"/>
-            <stop offset="50%" stop-color="#0f8f5f"/>
-            <stop offset="100%" stop-color="#052e21"/>
+            <stop offset="50%" stop-color="#159087"/>
+            <stop offset="100%" stop-color="#0d2a52"/>
           </linearGradient>
           <clipPath id="mvGradLock-clip"><rect x="0" y="0" width="100" height="100" rx="19" ry="19"/></clipPath>
         </defs>
@@ -627,8 +635,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <defs>
           <linearGradient id="mvGradHeader" x1="8%" y1="0%" x2="95%" y2="100%">
             <stop offset="0%" stop-color="#3ddb9b"/>
-            <stop offset="50%" stop-color="#0f8f5f"/>
-            <stop offset="100%" stop-color="#052e21"/>
+            <stop offset="50%" stop-color="#159087"/>
+            <stop offset="100%" stop-color="#0d2a52"/>
           </linearGradient>
           <clipPath id="mvGradHeader-clip"><rect x="0" y="0" width="100" height="100" rx="19" ry="19"/></clipPath>
         </defs>
@@ -661,7 +669,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     <button data-view="resumen" class="active"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-5 3 3 5-7"/></svg>Resumen</button>
     <button data-view="entidades"><svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6"/></svg>Por Entidad</button>
     <button data-view="historico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M6 16l4-6 4 3 5-8"/></svg>Histórico</button>
-    <button data-view="deuda"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 9.5c0-1.4 1.3-2.5 3-2.5s3 1.1 3 2.4c0 3.1-6 1.6-6 4.7 0 1.3 1.3 2.4 3 2.4s3-1.1 3-2.5"/></svg>Deuda &amp; Gastos</button>
+    <button data-view="deuda"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 9.5c0-1.4 1.3-2.5 3-2.5s3 1.1 3 2.4c0 3.1-6 1.6-6 4.7 0 1.3 1.3 2.4 3 2.4s3-1.1 3-2.5"/></svg>Deuda</button>
+    <button data-view="gastos"><svg class="icon" viewBox="0 0 24 24"><path d="M3 7h18v13H3z"/><path d="M3 7l3-4h12l3 4"/><path d="M9 11a3 3 0 0 0 6 0"/></svg>Gastos</button>
+    <button data-view="fees"><svg class="icon" viewBox="0 0 24 24"><circle cx="7" cy="7" r="2.5"/><circle cx="17" cy="17" r="2.5"/><path d="M18 6L6 18"/></svg>Fees</button>
     <button data-view="is"><svg class="icon" viewBox="0 0 24 24"><path d="M4 19h16"/><path d="M7 19V9M12 19V5M17 19v-7"/></svg>Estado de Resultados</button>
     <button data-view="admin" data-admin-only="1" style="display:none;"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.04 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.04-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.04H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.04 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34H9a1.7 1.7 0 0 0 1.04-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.04 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87V9a1.7 1.7 0 0 0 1.56 1.04H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.04z"/></svg>Administración</button>
   </nav>
@@ -820,7 +830,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           </div>
         </div>
       </div>
+    </section>
 
+    <!-- ========== GASTOS ========== -->
+    <section id="view-gastos" class="view">
       <div class="card section-title"><h2>Gastos Familiares</h2></div>
       <div class="grid cols-2">
         <div class="panel">
@@ -839,8 +852,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           <div class="legend" id="legend-expenses-cat"></div>
         </div>
       </div>
+    </section>
 
+    <!-- ========== FEES ========== -->
+    <section id="view-fees" class="view">
       <div class="card section-title"><h2>Management Fees (YTD)</h2></div>
+      <div class="grid cols-2" id="fees-summary" style="margin-bottom:14px;"></div>
       <div class="panel">
         <div class="table-scroll"><table id="fees-table"></table></div>
       </div>
@@ -907,7 +924,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 <label class="checkbox-chip"><input type="checkbox" value="resumen" checked> Resumen</label>
                 <label class="checkbox-chip"><input type="checkbox" value="entidades" checked> Por Entidad</label>
                 <label class="checkbox-chip"><input type="checkbox" value="historico" checked> Histórico</label>
-                <label class="checkbox-chip"><input type="checkbox" value="deuda" checked> Deuda &amp; Gastos</label>
+                <label class="checkbox-chip"><input type="checkbox" value="deuda" checked> Deuda</label>
+                <label class="checkbox-chip"><input type="checkbox" value="gastos" checked> Gastos</label>
+                <label class="checkbox-chip"><input type="checkbox" value="fees" checked> Fees</label>
                 <label class="checkbox-chip"><input type="checkbox" value="is" checked> Estado de Resultados</label>
               </div>
             </div>
@@ -2786,6 +2805,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const rows = Object.keys(details).filter(k => details[k]).map(k => ({ name:k, feesYtd: details[k].feesYtd, balance: details[k].balance }));
     const totalFees = rows.reduce((s,r)=>s+(r.feesYtd||0),0);
     const totalBalance = rows.reduce((s,r)=>s+(r.balance||0),0);
+
+    const summaryEl = document.getElementById('fees-summary');
+    if (summaryEl) {
+      const summaryChips = [
+        ['Total Fees YTD', fmtUSD(totalFees)],
+        ['% Promedio del AUM', totalBalance ? fmtPctPlain(totalFees/totalBalance,2) : '—']
+      ];
+      summaryEl.innerHTML = summaryChips.map(([k,v]) => `
+        <div class="card" style="padding:14px;">
+          <h3 style="margin-bottom:6px;">${esc(k)}</h3>
+          <div style="font-size:16px;font-weight:650;">${esc(v)}</div>
+        </div>
+      `).join('');
+    }
+
     const tbl = document.getElementById('fees-table');
     tbl.innerHTML = `
       <thead><tr><th>Banco</th><th>Fees YTD</th><th>% del AUM</th></tr></thead>
