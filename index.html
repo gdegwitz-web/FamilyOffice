@@ -1129,20 +1129,40 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         ytdReturn: safe(getCell(ws, r, 17))              // Q
       });
     }
+    // "Total" row (balance + return summary) is normally row 17, right after the last bank
+    // row, but locate it by scanning for the first row after the bank list with a numeric
+    // balance in column H rather than hardcoding 17 -- keeps this resilient if a bank row
+    // is ever added/removed and the block shifts.
+    const bounds = sheetBounds(ws);
+    let totalRow = null;
+    for (let r = 17; r <= Math.min(25, bounds.maxRow); r++) {
+      if (isNum(getCell(ws, r, 8))) { totalRow = r; break; }
+    }
+    if (!totalRow) totalRow = 17;
+    // "Loans & LoC" and "Net Financial Assets" are their own labeled rows in the sheet
+    // (found by label, not a hardcoded row number -- row positions have been observed to
+    // drift between monthly files, the same issue previously hit with the IS sheet parser).
+    // They're financial-only figures, distinct from the Dashboard sheet's blended
+    // totalLiabilities/netWorth, which also fold in real estate and art.
+    const loansRow = findRowByExactLabel(ws, 4, 'Loans & LoC', totalRow, bounds.maxRow) ||
+                      findRowByLabelContains(ws, 4, 'loans & loc', totalRow, bounds.maxRow);
+    const netFinRow = findRowByExactLabel(ws, 4, 'Net Financial Assets', totalRow, bounds.maxRow) ||
+                       findRowByLabelContains(ws, 4, 'net financial assets', totalRow, bounds.maxRow);
+    // "Month Net Perf.(%)" sits in the same row as Net Financial Assets, a few columns over
+    // (col K holds the label, col L the value) -- found relative to that row instead of a
+    // separately hardcoded row number.
+    const monthReturnNet = netFinRow ? safe(getCell(ws, netFinRow, 12)) : null; // col L
+
     return {
       rows,
       total: {
-        balance: safe(getCell(ws, 17, 8)),      // H17
-        monthReturnGross: safe(getCell(ws, 17, 12)), // L17
-        monthReturnNet: safe(getCell(ws, 21, 12)),   // L21
-        ytdReturnGross: safe(getCell(ws, 17, 16)),   // P17
-        ytdReturnNet: safe(getCell(ws, 17, 17)),     // Q17
-        // "Loans & LoC" (row labeled exactly that in the Banks sheet) and "Net Financial
-        // Assets" are the sheet's own financial-only figures -- distinct from the
-        // Dashboard sheet's blended totalLiabilities/netWorth, which also fold in real
-        // estate and art. Row 19 / row 21, column H (current month).
-        loansAndLoC: safe(getCell(ws, 19, 8)),        // H19 (stored negative in the sheet)
-        netFinancialAssets: safe(getCell(ws, 21, 8))  // H21
+        balance: safe(getCell(ws, totalRow, 8)),          // H, Total row
+        monthReturnGross: safe(getCell(ws, totalRow, 12)), // L, Total row
+        monthReturnNet: monthReturnNet,
+        ytdReturnGross: safe(getCell(ws, totalRow, 16)),   // P, Total row
+        ytdReturnNet: safe(getCell(ws, totalRow, 17)),     // Q, Total row
+        loansAndLoC: loansRow ? safe(getCell(ws, loansRow, 8)) : null,       // stored negative in the sheet
+        netFinancialAssets: netFinRow ? safe(getCell(ws, netFinRow, 8)) : null
       }
     };
   }
