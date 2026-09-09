@@ -1163,10 +1163,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     // column itself can also vary -- some monthly files put these bold summary-row labels in
     // column C (one column left of where the per-bank name rows put theirs, in D), so both
     // columns are checked.
-    const labelCols = [3, 4]; // C, D
-    const loansRow = findRowByLabelAnyCol(ws, labelCols, 'Loans & LoC', totalRow, bounds.maxRow);
-    const arRow = findRowByLabelAnyCol(ws, labelCols, 'Accounts Receivable', totalRow, bounds.maxRow);
-    const netFinRow = findRowByLabelAnyCol(ws, labelCols, 'Net Financial Assets', totalRow, bounds.maxRow);
+    // Search a generous fixed row window instead of trusting the sheet's own declared
+    // !ref dimensions (bounds.maxRow) -- that metadata has been unreliable in practice (can
+    // be stale/short even when cells with real data exist further down), which is the most
+    // likely reason the previous column-only fix still came back empty. Also check columns
+    // B through E for the label, not just C/D, since the exact column has moved before too.
+    const labelCols = [2, 3, 4, 5]; // B, C, D, E
+    const searchEnd = Math.max(bounds.maxRow, 80);
+    const loansRow = findRowByLabelAnyCol(ws, labelCols, 'Loans & LoC', 10, searchEnd);
+    const arRow = findRowByLabelAnyCol(ws, labelCols, 'Accounts Receivable', 10, searchEnd);
+    const netFinRow = findRowByLabelAnyCol(ws, labelCols, 'Net Financial Assets', 10, searchEnd);
     // "Month Net Perf.(%)" sits in the same row as Net Financial Assets, a few columns over
     // (col K holds the label, col L the value) -- found relative to that row instead of a
     // separately hardcoded row number.
