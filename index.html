@@ -1025,6 +1025,22 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
     return null;
   }
+  // Same as findRowByExactLabel/findRowByLabelContains, but checks several candidate label
+  // columns (some sheets put summary-row labels one column to the left of where the regular
+  // per-item rows put theirs, e.g. a bold total label overflowing from column C while the
+  // bank names above it live in column D) -- tries each column in order, exact match first
+  // across all columns, then contains-match across all columns.
+  function findRowByLabelAnyCol(ws, colIndexes, label, rowStart, rowEnd) {
+    for (let i = 0; i < colIndexes.length; i++) {
+      const r = findRowByExactLabel(ws, colIndexes[i], label, rowStart, rowEnd);
+      if (r) return r;
+    }
+    for (let i = 0; i < colIndexes.length; i++) {
+      const r = findRowByLabelContains(ws, colIndexes[i], label, rowStart, rowEnd);
+      if (r) return r;
+    }
+    return null;
+  }
 
   function monthIndexFromValue(v) {
     if (v instanceof Date) return { year: v.getFullYear(), month: v.getMonth() };
@@ -1139,15 +1155,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (isNum(getCell(ws, r, 8))) { totalRow = r; break; }
     }
     if (!totalRow) totalRow = 17;
-    // "Loans & LoC" and "Net Financial Assets" are their own labeled rows in the sheet
-    // (found by label, not a hardcoded row number -- row positions have been observed to
-    // drift between monthly files, the same issue previously hit with the IS sheet parser).
-    // They're financial-only figures, distinct from the Dashboard sheet's blended
-    // totalLiabilities/netWorth, which also fold in real estate and art.
-    const loansRow = findRowByExactLabel(ws, 4, 'Loans & LoC', totalRow, bounds.maxRow) ||
-                      findRowByLabelContains(ws, 4, 'loans & loc', totalRow, bounds.maxRow);
-    const netFinRow = findRowByExactLabel(ws, 4, 'Net Financial Assets', totalRow, bounds.maxRow) ||
-                       findRowByLabelContains(ws, 4, 'net financial assets', totalRow, bounds.maxRow);
+    // "Loans & LoC", "Accounts Receivable" and "Net Financial Assets" are their own labeled
+    // rows in the sheet (found by label, not a hardcoded row number -- row positions have
+    // been observed to drift between monthly files, the same issue previously hit with the
+    // IS sheet parser). They're financial-only figures, distinct from the Dashboard sheet's
+    // blended totalLiabilities/netWorth, which also fold in real estate and art. The label
+    // column itself can also vary -- some monthly files put these bold summary-row labels in
+    // column C (one column left of where the per-bank name rows put theirs, in D), so both
+    // columns are checked.
+    const labelCols = [3, 4]; // C, D
+    const loansRow = findRowByLabelAnyCol(ws, labelCols, 'Loans & LoC', totalRow, bounds.maxRow);
+    const arRow = findRowByLabelAnyCol(ws, labelCols, 'Accounts Receivable', totalRow, bounds.maxRow);
+    const netFinRow = findRowByLabelAnyCol(ws, labelCols, 'Net Financial Assets', totalRow, bounds.maxRow);
     // "Month Net Perf.(%)" sits in the same row as Net Financial Assets, a few columns over
     // (col K holds the label, col L the value) -- found relative to that row instead of a
     // separately hardcoded row number.
@@ -1162,6 +1181,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         ytdReturnGross: safe(getCell(ws, totalRow, 16)),   // P, Total row
         ytdReturnNet: safe(getCell(ws, totalRow, 17)),     // Q, Total row
         loansAndLoC: loansRow ? safe(getCell(ws, loansRow, 8)) : null,       // stored negative in the sheet
+        accountsReceivable: arRow ? safe(getCell(ws, arRow, 8)) : null,     // present in some months, not others
         netFinancialAssets: netFinRow ? safe(getCell(ws, netFinRow, 8)) : null
       }
     };
@@ -2296,13 +2316,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     // Order follows the Banks sheet's own structure so the numbers read as a clear
     // waterfall instead of mixing in the Dashboard sheet's blended totals (which also
     // fold in real estate and art, and don't match these financial-only figures exactly):
-    // 1) Total AUM (everything) -> 2) the Banks sheet's own balance/debt block -> 3) its
-    // Net Financial Assets bottom line -> 4) returns, kept at the end.
+    // 1) Total AUM (everything) -> 2) the Banks sheet's own balance/debt/A-R block -> 3) its
+    // Net Financial Assets bottom line -> 4) returns, kept at the end. Accounts Receivable
+    // is not present in every monthly file (some months simply have no A/R line item) --
+    // fmtUSD() shows an em dash for those, same as any other missing figure.
     const cards = [
       { label:'Total AUM (Assets)', value: fmtUSD(d && d.totalAssets), sub: 'Banks + Real Estate + Art' },
       { label:'Balance in Banks', value: fmtUSD(b && b.total.balance), sub: 'As of ' + viewDateLabel },
       { label:'Loans & LoC', value: fmtUSD(b && b.total.loansAndLoC), sub: 'Loans and lines of credit' },
-      { label:'Net Financial Assets', value: fmtUSD(b && b.total.netFinancialAssets), sub: 'Balance in Banks − Loans & LoC' },
+      { label:'Accounts Receivable', value: fmtUSD(b && b.total.accountsReceivable), sub: 'A/R' },
+      { label:'Net Financial Assets', value: fmtUSD(b && b.total.netFinancialAssets), sub: 'Balance in Banks − Loans & LoC + A/R' },
       { label:'Month Return (Net)', value: fmtPct(b && b.total.monthReturnNet), sub: 'Gross: ' + fmtPct(b && b.total.monthReturnGross) + returnSubNote, badge:true, badgeVal: b && b.total.monthReturnNet },
       { label:'YTD Return (Net)', value: fmtPct(b && b.total.ytdReturnNet), sub: 'Gross: ' + fmtPct(b && b.total.ytdReturnGross) + returnSubNote, badge:true, badgeVal: b && b.total.ytdReturnNet }
     ];
