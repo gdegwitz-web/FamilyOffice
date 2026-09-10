@@ -831,6 +831,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           </div>
         </div>
       </div>
+      <div class="panel" style="margin-top:14px;">
+        <h3>Cost of Debt</h3>
+        <div class="grid cols-2" id="loan-rate-stats"></div>
+      </div>
+      <div class="panel" style="margin-top:14px;">
+        <h3>Debt as % of Bank Balance</h3>
+        <div class="chart-wrap chart-wrap-tall"><canvas id="chart-loan-debt-ratio"></canvas></div>
+      </div>
     </section>
 
     <!-- ========== EXPENSES ========== -->
@@ -1237,13 +1245,28 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   function parseLoan(wb) {
     const ws = wb.Sheets['Loan'];
-    if (!ws) return { rows: [], total: null };
+    if (!ws) return { rows: [], total: null, rates: null, moneyGenerated: null };
+    const bounds = sheetBounds(ws);
+    const searchEnd = Math.max(bounds.maxRow, 80);
+
+    // Bank rows are found by matching known bank names in column B across a wide row
+    // window, not a hardcoded range -- this sheet only lists whichever banks currently
+    // carry a loan balance, and (like the Banks sheet) the exact starting row has been
+    // observed to drift between monthly files.
+    const KNOWN_BANK_NAMES = ['JPM US', 'JPM Suiza', 'UBS Suiza', 'UBS US', 'EdR', 'Citi', 'Venecredit'];
     const rows = [];
-    for (let r = 4; r <= 7; r++) {
+    const bankRowByName = {}; // name -> sheet row number, used below to pull per-row fields (e.g. maturity) tied to that bank
+    let lastBankRow = null;
+    for (let r = 2; r <= Math.min(20, searchEnd); r++) {
       const name = getCell(ws, r, 2); // B
       if (!name) continue;
+      const nameStr = String(name).trim();
+      const isKnownBank = KNOWN_BANK_NAMES.some(function(b){ return normLabel(b) === normLabel(nameStr); });
+      if (!isKnownBank) continue;
+      lastBankRow = r;
+      bankRowByName[nameStr] = r;
       rows.push({
-        name: String(name).trim(),
+        name: nameStr,
         balance: safe(getCell(ws, r, 3), 0),      // C
         lineUsed: safe(getCell(ws, r, 4), 0),      // D
         netBalance: safe(getCell(ws, r, 5), 0),    // E
@@ -1252,15 +1275,128 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         notUsedPct: safe(getCell(ws, r, 8), 0)     // H
       });
     }
+    // Total row: first row after the last bank row with a numeric balance in column C.
+    let totalRow = null;
+    if (lastBankRow) {
+      for (let r = lastBankRow + 1; r <= Math.min(lastBankRow + 4, searchEnd); r++) {
+        if (isNum(getCell(ws, r, 3))) { totalRow = r; break; }
+      }
+    }
+    const total = totalRow ? {
+      balance: safe(getCell(ws, totalRow, 3)),
+      lineUsed: safe(getCell(ws, totalRow, 4)),
+      netBalance: safe(getCell(ws, totalRow, 5)),
+      lineAvailable: safe(getCell(ws, totalRow, 6)),
+      usedPct: safe(getCell(ws, totalRow, 7))
+    } : null;
+
+    // ---- "Rates" summary box: standalone Max / Actual / Min labels, each with its
+    // percentage value a few columns to the right on the same row. Searched independently
+    // by label text (not a fixed cell) across a generous window.
+    function findLabeledValue(label, rowRange, colRange) {
+      for (let r = rowRange[0]; r <= rowRange[1]; r++) {
+        for (let c = colRange[0]; c <= colRange[1]; c++) {
+          if (normLabel(getCell(ws, r, c)) === normLabel(label)) {
+            for (let vc = c + 1; vc <= c + 4; vc++) {
+              const candidate = getCell(ws, r, vc);
+              if (isNum(candidate)) return candidate;
+            }
+          }
+        }
+      }
+      return null;
+    }
+    const weightedAvgActual = findLabeledValue('Actual', [1, 20], [8, 18]);
+    const weightedAvgMax = findLabeledValue('Max', [1, 20], [8, 18]);
+    const weightedAvgMin = findLabeledValue('Min', [1, 20], [8, 18]);
+
+    // ---- Per-bank actual/max rate table: has its own header row with "Actual", "Actual
+    // (USD)" and "Max" as three consecutive columns (in that left-to-right order), with
+    // bank names one column to the left of "Actual". Located by the distinctive "Actual
+    // (USD)" header text, then the other columns/names are read relative to it rather than
+    // via separately hardcoded positions.
+    const perBankRates = {};
+    let rateHeaderRow = null, rateHeaderCol = null;
+    for (let r = 1; r <= searchEnd && !rateHeaderRow; r++) {
+      for (let c = 1; c <= 20; c++) {
+        if (normLabel(getCell(ws, r, c)) === normLabel('Actual (USD)')) { rateHeaderRow = r; rateHeaderCol = c; break; }
+      }
+    }
+    if (rateHeaderRow) {
+      const nameCol = rateHeaderCol - 2, actualCol = rateHeaderCol - 1, maxCol = rateHeaderCol + 1;
+      for (let r = rateHeaderRow + 1; r <= rateHeaderRow + 10; r++) {
+        const nm = getCell(ws, r, nameCol);
+        if (!nm) continue;
+        const nmStr = String(nm).trim();
+        perBankRates[nmStr] = {
+          actual: safe(getCell(ws, r, actualCol)),
+          actualUSD: safe(getCell(ws, r, rateHeaderCol)),
+          max: safe(getCell(ws, r, maxCol))
+        };
+      }
+    }
+
+    // ---- "Total Money Generated from Loans" -- the running lifetime profit generated by
+    // investing borrowed money (portfolio gains net of loan cost, plus any one-off items),
+    // confirmed by the user to be a single already-computed figure in this sheet. Found by
+    // its distinctive label text rather than a fixed cell.
+    let moneyGenerated = null;
+    for (let r = 1; r <= searchEnd && moneyGenerated === null; r++) {
+      for (let c = 1; c <= 20; c++) {
+        const v = normLabel(getCell(ws, r, c));
+        if (v.indexOf('total money generated from loans') !== -1) {
+          for (let vc = c + 1; vc <= c + 6; vc++) {
+            const candidate = getCell(ws, r, vc);
+            if (isNum(candidate)) { moneyGenerated = candidate; break; }
+          }
+        }
+      }
+    }
+
+    // ---- Join the per-bank rate table onto the main rows by fuzzy name match: the rate
+    // table's own labels (e.g. "JPM", "UBS CH (Eur)") don't always exactly match the
+    // canonical bank names used in the main table (e.g. "JPM US", "UBS Suiza"), so try an
+    // exact normalized match first, then a substring match in either direction.
+    function fuzzyRateLookup(nameStr) {
+      if (perBankRates[nameStr]) return perBankRates[nameStr];
+      const target = normLabel(nameStr);
+      const keys = Object.keys(perBankRates);
+      let key = keys.find(function(k){ return normLabel(k) === target; });
+      if (!key) key = keys.find(function(k){ return target.indexOf(normLabel(k)) !== -1 || normLabel(k).indexOf(target) !== -1; });
+      return key ? perBankRates[key] : null;
+    }
+    rows.forEach(function(row){
+      const rate = fuzzyRateLookup(row.name);
+      row.actualRate = rate ? rate.actual : null;
+      row.maxRate = rate ? rate.max : null;
+    });
+
+    // ---- Maturity dates: found by locating a header cell containing "maturity" anywhere
+    // above/alongside the bank table, then reading each bank's value from its OWN row in
+    // that column -- keeps the date tied to the right bank even if row order shifts between
+    // monthly files. Read with cellDates:true at the workbook level, so this is typically
+    // already a JS Date; fmtDate() in app.js handles both a Date and a raw value.
+    let maturityCol = null;
+    const maturitySearchEnd = Math.max(lastBankRow || 0, 20);
+    for (let r = 1; r <= maturitySearchEnd && maturityCol === null; r++) {
+      for (let c = 2; c <= 18; c++) {
+        const v = normLabel(getCell(ws, r, c));
+        if (v && v.indexOf('maturity') !== -1) { maturityCol = c; break; }
+      }
+    }
+    if (maturityCol !== null) {
+      rows.forEach(function(row){
+        const r = bankRowByName[row.name];
+        const val = r ? getCell(ws, r, maturityCol) : undefined;
+        row.maturity = (val === undefined || val === '') ? null : val;
+      });
+    }
+
     return {
       rows,
-      total: {
-        balance: safe(getCell(ws, 8, 3)),
-        lineUsed: safe(getCell(ws, 8, 4)),
-        netBalance: safe(getCell(ws, 8, 5)),
-        lineAvailable: safe(getCell(ws, 8, 6)),
-        usedPct: safe(getCell(ws, 8, 7))
-      }
+      total,
+      rates: { weightedAvgActual: weightedAvgActual, weightedAvgMax: weightedAvgMax, weightedAvgMin: weightedAvgMin, perBank: perBankRates },
+      moneyGenerated: moneyGenerated
     };
   }
 
@@ -2745,6 +2881,33 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (chart) chart.config._isWaterfall = true;
   }
 
+  // Draws a dashed horizontal line + label at the 30% mark on the debt/balance-ratio
+  // chart's y-scale, mirroring the waterfallLabelsPlugin pattern used for the IS chart above.
+  const debtThresholdPlugin = {
+    id: 'debtThreshold',
+    afterDraw(chart){
+      if (!chart.config._debtThreshold) return;
+      const { ctx, chartArea, scales } = chart;
+      const y = scales.y;
+      if (!y || !chartArea) return;
+      const yPix = y.getPixelForValue(30);
+      ctx.save();
+      ctx.strokeStyle = '#ffb454';
+      ctx.setLineDash([6,4]);
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(chartArea.left, yPix);
+      ctx.lineTo(chartArea.right, yPix);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#ffb454';
+      ctx.font = "600 11px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+      ctx.textAlign = 'right';
+      ctx.fillText('30% threshold', chartArea.right - 4, yPix - 6);
+      ctx.restore();
+    }
+  };
+
   function renderDeudaGastos(){
     if (!activeView) return;
     renderLoanSection();
@@ -2782,7 +2945,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       `;
     } else {
       tbl.innerHTML = `
-        <thead><tr><th>Bank</th><th>Balance</th><th>Line Used</th><th>Available</th><th>% Used</th></tr></thead>
+        <thead><tr><th>Bank</th><th>Balance</th><th>Line Used</th><th>Available</th><th>% Used</th><th>Actual Rate</th><th>Maturity</th></tr></thead>
         <tbody>
           ${rows.map(r => `
             <tr>
@@ -2793,12 +2956,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 <div class="progress"><div style="width:${Math.min(100,(r.usedPct||0)*100)}%;"></div></div>
               </td>
               <td>${fmtPctPlain(r.usedPct,1)}</td>
+              <td>${fmtPctPlain(r.actualRate,2)}</td>
+              <td>${r.maturity ? fmtDate(r.maturity) : '—'}</td>
             </tr>
           `).join('')}
           ${total ? `
             <tr class="total-row">
               <td>Total</td><td>${fmtUSD(total.balance)}</td><td>${fmtUSD(total.lineUsed)}</td>
               <td>${fmtUSD(total.lineAvailable)}</td><td>${fmtPctPlain(total.usedPct,1)}</td>
+              <td>${fmtPctPlain(loan && loan.rates ? loan.rates.weightedAvgActual : null,2)}</td><td>—</td>
             </tr>` : ''}
         </tbody>
       `;
@@ -2821,6 +2987,68 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           <span class="val">${fmtPctPlain(loanTotalUsed ? e[1]/loanTotalUsed : 0,1)}</span>
         </div>
       `).join('');
+    }
+
+    // ---- Cost of debt / money generated KPI cards ----
+    const rateStats = document.getElementById('loan-rate-stats');
+    if (rateStats) {
+      const rates = loan && loan.rates;
+      const weightedActual = rates ? rates.weightedAvgActual : null;
+      const moneyGen = loan ? loan.moneyGenerated : null;
+      rateStats.innerHTML = `
+        <div class="card" style="padding:14px;">
+          <h3 style="margin-bottom:6px;">Weighted Avg. Cost of Debt</h3>
+          <div style="font-size:20px;font-weight:700;">${fmtPctPlain(weightedActual,2)}</div>
+          <div class="sub" style="margin-top:2px;">Blended actual rate across all loans</div>
+        </div>
+        <div class="card" style="padding:14px;">
+          <h3 style="margin-bottom:6px;">Money Generated from Loans</h3>
+          <div style="font-size:20px;font-weight:700;">${fmtUSD(moneyGen)}</div>
+          <div class="sub" style="margin-top:2px;">Lifetime gain from investing borrowed funds</div>
+        </div>
+      `;
+    }
+
+    // ---- Debt as % of each bank's own balance (not the credit line), with a 30%
+    // threshold line -- joins this loan table's lineUsed against that bank's balance
+    // from the Banks sheet. Only meaningful for the latest month, same as the rest of
+    // this per-bank breakdown.
+    const balanceByBank = {};
+    (activeView.banks ? activeView.banks.rows : []).forEach(r => { balanceByBank[r.name] = r.balance; });
+    const ratioRows = perBankAvailable ? rows
+      .map(r => {
+        const bal = balanceByBank[r.name];
+        const pct = (bal && bal > 0) ? (r.lineUsed / bal) * 100 : null;
+        return { name: r.name, pct };
+      })
+      .filter(r => r.pct !== null) : [];
+    if (!perBankAvailable || !ratioRows.length) {
+      if (charts['chart-loan-debt-ratio']) { charts['chart-loan-debt-ratio'].destroy(); delete charts['chart-loan-debt-ratio']; }
+    } else {
+      const chart = makeChart('chart-loan-debt-ratio', {
+        type: 'bar',
+        data: {
+          labels: ratioRows.map(r => r.name),
+          datasets: [{
+            data: ratioRows.map(r => r.pct),
+            backgroundColor: ratioRows.map(r => r.pct >= 30 ? '#ff7a7a' : '#3ddb9b'),
+            borderRadius: 5
+          }]
+        },
+        options: {
+          plugins: {
+            legend: { display: false },
+            tooltip: { callbacks: { label: ctx => ctx.raw.toFixed(1) + '% of bank balance' } }
+          },
+          scales: {
+            y: { ticks: { color: CHART_DEFAULTS_TEXT, callback: v => v + '%' }, grid: { color: CHART_GRID }, suggestedMax: Math.max(35, ...ratioRows.map(r=>r.pct)) },
+            x: { ticks: { color: CHART_DEFAULTS_TEXT }, grid: { display: false } }
+          },
+          layout: { padding: { top: 22 } }
+        },
+        plugins: [debtThresholdPlugin]
+      });
+      if (chart) chart.config._debtThreshold = true;
     }
   }
   function renderExpensesSection(){
