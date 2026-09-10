@@ -1179,19 +1179,34 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const loansRow = findRowByLabelAnyCol(ws, labelCols, 'Loans & LoC', 10, searchEnd);
     const arRow = findRowByLabelAnyCol(ws, labelCols, 'Accounts Receivable', 10, searchEnd);
     const netFinRow = findRowByLabelAnyCol(ws, labelCols, 'Net Financial Assets', 10, searchEnd);
-    // "Month Net Perf.(%)" sits in the same row as Net Financial Assets, a few columns over
-    // (col K holds the label, col L the value) -- found relative to that row instead of a
-    // separately hardcoded row number.
-    const monthReturnNet = netFinRow ? safe(getCell(ws, netFinRow, 12)) : null; // col L
+    // "Month Net Perf.(%)" was assumed to sit on the same row as Net Financial Assets (a few
+    // columns over) -- confirmed wrong once Net Financial Assets' own row moved (21 -> 24)
+    // independently of this label, which stayed on a different row. Search for the label
+    // itself instead, across a wide row/column window, then take the first numeric value in
+    // the few columns immediately to its right.
+    let monthReturnNet = null;
+    for (let r = 10; r <= searchEnd && monthReturnNet === null; r++) {
+      for (let cIdx = 8; cIdx <= 13; cIdx++) {
+        const v = normLabel(getCell(ws, r, cIdx));
+        if (v && v.indexOf('month net perf') !== -1) {
+          for (let vc = cIdx + 1; vc <= cIdx + 4; vc++) {
+            const candidate = getCell(ws, r, vc);
+            if (isNum(candidate)) { monthReturnNet = candidate; break; }
+          }
+          break;
+        }
+      }
+    }
 
-    // TEMPORARY DIAGNOSTIC: dump every non-empty cell in columns B-H (2-8) for rows 10-40 of
+    // TEMPORARY DIAGNOSTIC: dump every non-empty cell in columns B-N (2-14) for rows 10-40 of
     // the Banks sheet, so the exact label text/column/value type can be inspected from a
     // screenshot in the app instead of guessing blind. Safe to remove once the Loans & LoC /
-    // Accounts Receivable / Net Financial Assets lookup is confirmed working.
+    // Accounts Receivable / Net Financial Assets / Month Net Return lookups are all confirmed
+    // working.
     const debugDump = [];
-    const colLetters = { 2:'B', 3:'C', 4:'D', 5:'E', 6:'F', 7:'G', 8:'H' };
+    const colLetters = { 2:'B', 3:'C', 4:'D', 5:'E', 6:'F', 7:'G', 8:'H', 9:'I', 10:'J', 11:'K', 12:'L', 13:'M', 14:'N' };
     for (let r = 10; r <= 40; r++) {
-      for (let cIdx = 2; cIdx <= 8; cIdx++) {
+      for (let cIdx = 2; cIdx <= 14; cIdx++) {
         const raw = getCell(ws, r, cIdx);
         if (raw === undefined || raw === null || raw === '') continue;
         const vtype = typeof raw;
@@ -1214,7 +1229,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         debugTotalRow: totalRow,
         debugLoansRow: loansRow,
         debugArRow: arRow,
-        debugNetFinRow: netFinRow
+        debugNetFinRow: netFinRow,
+        debugMonthReturnNet: monthReturnNet
       }
     };
   }
@@ -2348,12 +2364,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     // Order follows the Banks sheet's own structure so the numbers read as a clear
     // waterfall instead of mixing in the Dashboard sheet's blended totals (which also
     // fold in real estate and art, and don't match these financial-only figures exactly):
-    // 1) Total AUM (everything) -> 2) the Banks sheet's own balance/debt/A-R block -> 3) its
-    // Net Financial Assets bottom line -> 4) returns, kept at the end. Accounts Receivable
-    // is not present in every monthly file (some months simply have no A/R line item) --
-    // fmtUSD() shows an em dash for those, same as any other missing figure.
+    // the Banks sheet's own balance/debt/A-R block -> its Net Financial Assets bottom line
+    // -> returns, kept at the end. Total AUM (everything) lives on the Summary page, not
+    // repeated here. Accounts Receivable is not present in every monthly file (some months
+    // simply have no A/R line item) -- fmtUSD() shows an em dash for those, same as any
+    // other missing figure.
     const cards = [
-      { label:'Total AUM (Assets)', value: fmtUSD(d && d.totalAssets), sub: 'Banks + Real Estate + Art' },
       { label:'Balance in Banks', value: fmtUSD(b && b.total.balance), sub: 'As of ' + viewDateLabel },
       { label:'Loans & LoC', value: fmtUSD(b && b.total.loansAndLoC), sub: 'Loans and lines of credit' },
       { label:'Accounts Receivable', value: fmtUSD(b && b.total.accountsReceivable), sub: 'A/R' },
@@ -3004,7 +3020,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const total = state && state.banks && state.banks.total;
     if (!total || !total.debugDump) { el.textContent = 'No debug data available.'; return; }
     let out = 'totalRow=' + total.debugTotalRow + '  loansRow=' + total.debugLoansRow +
-      '  arRow=' + total.debugArRow + '  netFinRow=' + total.debugNetFinRow + '\n\n';
+      '  arRow=' + total.debugArRow + '  netFinRow=' + total.debugNetFinRow +
+      '  monthReturnNet=' + total.debugMonthReturnNet + '\n\n';
     out += total.debugDump.join('\n');
     el.textContent = out;
   }
