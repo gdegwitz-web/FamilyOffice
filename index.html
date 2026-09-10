@@ -817,12 +817,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     <!-- ========== DEBT & EXPENSES ========== -->
     <section id="view-deuda" class="view">
       <div class="card section-title"><h2>Financial Debt</h2></div>
-      <div class="grid cols-2">
-        <div class="panel">
-          <h3>Loans by Bank</h3>
-          <div class="grid cols-2" id="loan-interest-stats" style="margin-bottom:14px;"></div>
-          <div class="table-scroll"><table id="loan-table"></table></div>
-        </div>
+
+      <div class="panel">
+        <h3>Cost of Debt</h3>
+        <div class="grid cols-2" id="loan-rate-stats" style="margin-bottom:14px;"></div>
+        <div class="table-scroll"><table id="loan-rate-table"></table></div>
+      </div>
+
+      <div class="panel" style="margin-top:14px;">
+        <h3>Loans by Bank</h3>
+        <div class="grid cols-2" id="loan-interest-stats" style="margin-bottom:14px;"></div>
+        <div class="table-scroll"><table id="loan-table"></table></div>
+      </div>
+
+      <div class="grid cols-2" style="margin-top:14px;">
         <div class="panel">
           <h3>Debt Composition</h3>
           <div class="panel-flex">
@@ -830,14 +838,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             <div class="legend" id="legend-loan"></div>
           </div>
         </div>
-      </div>
-      <div class="panel" style="margin-top:14px;">
-        <h3>Cost of Debt</h3>
-        <div class="grid cols-2" id="loan-rate-stats"></div>
-      </div>
-      <div class="panel" style="margin-top:14px;">
-        <h3>Debt as % of Bank Balance</h3>
-        <div class="chart-wrap chart-wrap-tall"><canvas id="chart-loan-debt-ratio"></canvas></div>
+        <div class="panel">
+          <h3>Debt as % of Bank Balance</h3>
+          <div class="chart-wrap chart-wrap-tall"><canvas id="chart-loan-debt-ratio"></canvas></div>
+        </div>
       </div>
     </section>
 
@@ -1371,26 +1375,37 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       row.maxRate = rate ? rate.max : null;
     });
 
-    // ---- Maturity dates: found by locating a header cell containing "maturity" anywhere
-    // above/alongside the bank table, then reading each bank's value from its OWN row in
-    // that column -- keeps the date tied to the right bank even if row order shifts between
-    // monthly files. Read with cellDates:true at the workbook level, so this is typically
-    // already a JS Date; fmtDate() in app.js handles both a Date and a raw value.
-    let maturityCol = null;
-    const maturitySearchEnd = Math.max(lastBankRow || 0, 20);
-    for (let r = 1; r <= maturitySearchEnd && maturityCol === null; r++) {
-      for (let c = 2; c <= 18; c++) {
-        const v = normLabel(getCell(ws, r, c));
-        if (v && v.indexOf('maturity') !== -1) { maturityCol = c; break; }
+    // ---- Maturity dates: confirmed by the user to live in three specific cells (S2, X4,
+    // AC4) rather than a shared column in the main table -- each is its own small box, not
+    // part of the main table's row layout. Each cell is paired with its bank by scanning a
+    // small neighborhood around it for a recognizable bank name label (the same defensive
+    // "search, don't hardcode position" pattern used elsewhere in this sheet), so the date
+    // stays attached to the right bank even if these boxes move between monthly files. Read
+    // with cellDates:true at the workbook level, so this is typically already a JS Date;
+    // fmtDate() in app.js handles both a Date and a raw value.
+    const MATURITY_CELLS = [
+      { row: 2, col: 19 }, // S2
+      { row: 4, col: 24 }, // X4
+      { row: 4, col: 29 }  // AC4
+    ];
+    MATURITY_CELLS.forEach(function(cellRef){
+      const val = getCell(ws, cellRef.row, cellRef.col);
+      if (val === undefined || val === '') return;
+      let matchedBank = null;
+      for (let rr = cellRef.row - 2; rr <= cellRef.row + 1 && !matchedBank; rr++) {
+        for (let cc = cellRef.col - 8; cc <= cellRef.col + 3 && !matchedBank; cc++) {
+          const label = getCell(ws, rr, cc);
+          if (!label) continue;
+          const labelStr = String(label).trim();
+          const hit = KNOWN_BANK_NAMES.find(function(b){ return normLabel(b) === normLabel(labelStr); });
+          if (hit) matchedBank = hit;
+        }
       }
-    }
-    if (maturityCol !== null) {
-      rows.forEach(function(row){
-        const r = bankRowByName[row.name];
-        const val = r ? getCell(ws, r, maturityCol) : undefined;
-        row.maturity = (val === undefined || val === '') ? null : val;
-      });
-    }
+      if (matchedBank) {
+        const row = rows.find(function(rw){ return normLabel(rw.name) === normLabel(matchedBank); });
+        if (row) row.maturity = val;
+      }
+    });
 
     return {
       rows,
@@ -2917,9 +2932,57 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function renderLoanSection(){
     const loan = activeView.loan;
     const perBankAvailable = activeView.loanDetailAvailable;
-    const rows = (perBankAvailable && loan) ? loan.rows : [];
+    const allRows = (perBankAvailable && loan) ? loan.rows : [];
+    // UBS US no longer carries a loan balance and has been excluded from this per-bank
+    // breakdown per instruction -- the aggregate Total row below still reflects the Excel
+    // sheet's own total across every bank; this filter only affects the display.
+    const normBankName = s => String(s || '').toLowerCase().trim().replace(/\s+/g, ' ');
+    const EXCLUDED_LOAN_BANKS = ['ubs us'];
+    const rows = allRows.filter(r => EXCLUDED_LOAN_BANKS.indexOf(normBankName(r.name)) === -1);
     const total = loan ? loan.total : null;
     const cy = activeView.expensesYear;
+
+    // ---- Cost of debt: weighted average + money generated + a per-bank rate breakdown,
+    // all together in one panel at the top of the tab so these headline figures are the
+    // first thing visible.
+    const rateStats = document.getElementById('loan-rate-stats');
+    if (rateStats) {
+      const rates = loan && loan.rates;
+      const weightedActual = rates ? rates.weightedAvgActual : null;
+      const moneyGen = loan ? loan.moneyGenerated : null;
+      rateStats.innerHTML = `
+        <div class="card" style="padding:14px;">
+          <h3 style="margin-bottom:6px;">Weighted Avg. Cost of Debt</h3>
+          <div style="font-size:20px;font-weight:700;">${fmtPctPlain(weightedActual,2)}</div>
+          <div class="sub" style="margin-top:2px;">Blended actual rate across all loans</div>
+        </div>
+        <div class="card" style="padding:14px;">
+          <h3 style="margin-bottom:6px;">Money Generated from Loans</h3>
+          <div style="font-size:20px;font-weight:700;">${fmtUSD(moneyGen)}</div>
+          <div class="sub" style="margin-top:2px;">Lifetime gain from investing borrowed funds</div>
+        </div>
+      `;
+    }
+    const rateTbl = document.getElementById('loan-rate-table');
+    if (rateTbl) {
+      if (!perBankAvailable || !rows.length) {
+        rateTbl.innerHTML = `<tbody><tr><td class="sub" style="padding:10px 0;">Per-bank rates only available for the latest month.</td></tr></tbody>`;
+      } else {
+        rateTbl.innerHTML = `
+          <thead><tr><th>Bank</th><th>Actual Rate</th><th>Max Rate</th></tr></thead>
+          <tbody>
+            ${rows.map(r => `
+              <tr>
+                <td><div style="display:flex;align-items:center;gap:8px;">${bankLogoChip(r.name,{height:18})}${esc(r.name)}</div></td>
+                <td>${fmtPctPlain(r.actualRate,2)}</td>
+                <td>${fmtPctPlain(r.maxRate,2)}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        `;
+      }
+    }
+
     const interestStats = document.getElementById('loan-interest-stats');
     if (interestStats) {
       if (cy) {
@@ -2971,7 +3034,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
     const loanEntries = rows.filter(r => r.lineUsed > 0).map((r,i) => [r.name, r.lineUsed, BANK_COLORS[i % BANK_COLORS.length]]);
     const loanTotalUsed = loanEntries.reduce((s,e)=>s+e[1],0);
-    const loanChartWrap = document.getElementById('chart-loan') ? document.getElementById('chart-loan').closest('.panel-flex') : null;
     if (!perBankAvailable) {
       if (charts['chart-loan']) { charts['chart-loan'].destroy(); delete charts['chart-loan']; }
       document.getElementById('legend-loan').innerHTML = `<div class="sub" style="padding:10px 0;">The breakdown by bank is only available for the most recently uploaded month.</div>`;
@@ -2987,26 +3049,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           <span class="val">${fmtPctPlain(loanTotalUsed ? e[1]/loanTotalUsed : 0,1)}</span>
         </div>
       `).join('');
-    }
-
-    // ---- Cost of debt / money generated KPI cards ----
-    const rateStats = document.getElementById('loan-rate-stats');
-    if (rateStats) {
-      const rates = loan && loan.rates;
-      const weightedActual = rates ? rates.weightedAvgActual : null;
-      const moneyGen = loan ? loan.moneyGenerated : null;
-      rateStats.innerHTML = `
-        <div class="card" style="padding:14px;">
-          <h3 style="margin-bottom:6px;">Weighted Avg. Cost of Debt</h3>
-          <div style="font-size:20px;font-weight:700;">${fmtPctPlain(weightedActual,2)}</div>
-          <div class="sub" style="margin-top:2px;">Blended actual rate across all loans</div>
-        </div>
-        <div class="card" style="padding:14px;">
-          <h3 style="margin-bottom:6px;">Money Generated from Loans</h3>
-          <div style="font-size:20px;font-weight:700;">${fmtUSD(moneyGen)}</div>
-          <div class="sub" style="margin-top:2px;">Lifetime gain from investing borrowed funds</div>
-        </div>
-      `;
     }
 
     // ---- Debt as % of each bank's own balance (not the credit line), with a 30%
