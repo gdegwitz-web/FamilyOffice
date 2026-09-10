@@ -1381,46 +1381,68 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       row.maxRate = rate ? rate.max : null;
     });
 
-    // ---- Maturity dates: confirmed by the user to live in three specific cells (S2, X4,
-    // AC4) rather than a shared column in the main table -- each is its own small box, not
-    // part of the main table's row layout. Each cell is paired with its bank by scanning a
-    // small neighborhood around it for a recognizable bank name label (the same defensive
-    // "search, don't hardcode position" pattern used elsewhere in this sheet), so the date
-    // stays attached to the right bank even if these boxes move between monthly files. Read
-    // with cellDates:true at the workbook level, so this is typically already a JS Date;
-    // fmtDate() in app.js handles both a Date and a raw value.
-    // Confirmed by the user: AC3 holds UBS Suiza's actual rate directly above its AC4
-    // maturity date -- so each of these three boxes carries BOTH figures for that bank
-    // (one row apart, same column), not just the maturity date. That makes this box the
-    // authoritative source for these three banks' actual rate, overriding whatever the
-    // vertical "Actual (USD)" table above found (or failed to find) for the same bank.
-    const MATURITY_CELLS = [
-      { row: 2, col: 19 }, // S2 (rate one row up at S1)
-      { row: 4, col: 24 }, // X4 (rate one row up at X3)
-      { row: 4, col: 29 }  // AC4 (rate one row up at AC3)
-    ];
-    MATURITY_CELLS.forEach(function(cellRef){
-      const maturityVal = getCell(ws, cellRef.row, cellRef.col);
-      const rateVal = getCell(ws, cellRef.row - 1, cellRef.col);
-      const hasMaturity = maturityVal !== undefined && maturityVal !== '';
-      const hasRate = isNum(rateVal);
-      if (!hasMaturity && !hasRate) return;
-      let matchedBank = null;
-      for (let rr = cellRef.row - 2; rr <= cellRef.row + 1 && !matchedBank; rr++) {
-        for (let cc = cellRef.col - 8; cc <= cellRef.col + 3 && !matchedBank; cc++) {
-          const label = getCell(ws, rr, cc);
-          if (!label) continue;
-          const labelStr = String(label).trim();
-          const hit = KNOWN_BANK_NAMES.find(function(b){ return normLabel(b) === normLabel(labelStr); });
-          if (hit) matchedBank = hit;
+    // ---- Per-bank "loan cost" boxes: confirmed via a raw cell dump that each bank has its
+    // own small box further right in the sheet (JPM around R-V, EdR around W-AA, UBS Suiza
+    // around AB onward, the latter labeled "UBS CH" in its own box header rather than "UBS
+    // Suiza") with "Actual Rate" and "Maturity" labels, each followed by its value one
+    // column to the right on the SAME row (not a fixed row/column offset between the two --
+    // JPM's box has them two rows apart, the others four). This is the only place UBS
+    // Suiza's actual rate exists at all (the vertical "Actual (USD)" table below doesn't
+    // list it), and the only source for any bank's maturity date, so its values override
+    // whatever the vertical table found. Found by locating each box's own header label
+    // (with alias variants for names that differ from the main table, e.g. "UBS CH") in the
+    // first few rows, then searching only within that box's own column span -- not a fixed
+    // position -- so this survives the labels/columns shifting between monthly files.
+    const BOX_BANK_ALIASES = {
+      'JPM US': ['JPM US', 'JPM'],
+      'JPM Suiza': ['JPM Suiza'],
+      'UBS Suiza': ['UBS Suiza', 'UBS CH', 'UBS'],
+      'UBS US': ['UBS US'],
+      'EdR': ['EdR'],
+      'Citi': ['Citi'],
+      'Venecredit': ['Venecredit']
+    };
+    function canonicalBoxBank(label) {
+      const norm = normLabel(label);
+      for (const canonical in BOX_BANK_ALIASES) {
+        if (BOX_BANK_ALIASES[canonical].some(function(a){ return normLabel(a) === norm; })) return canonical;
+      }
+      return null;
+    }
+    const boxAnchors = []; // { col, canonical }
+    for (let r = 1; r <= 3; r++) {
+      for (let c = 1; c <= 40; c++) {
+        const label = getCell(ws, r, c);
+        if (!label || typeof label !== 'string') continue;
+        const canonical = canonicalBoxBank(label.trim());
+        if (canonical && !boxAnchors.some(function(b){ return b.col === c; })) {
+          boxAnchors.push({ col: c, canonical: canonical });
         }
       }
-      if (matchedBank) {
-        const row = rows.find(function(rw){ return normLabel(rw.name) === normLabel(matchedBank); });
-        if (row) {
-          if (hasMaturity) row.maturity = maturityVal;
-          if (hasRate) row.actualRate = rateVal;
+    }
+    boxAnchors.sort(function(a,b){ return a.col - b.col; });
+    boxAnchors.forEach(function(anchor, idx){
+      const nextCol = (idx + 1 < boxAnchors.length) ? boxAnchors[idx + 1].col : anchor.col + 8;
+      const colFrom = anchor.col, colTo = Math.min(nextCol - 1, anchor.col + 7);
+      let rateVal = null, maturityVal = null;
+      for (let r = 1; r <= 10; r++) {
+        for (let c = colFrom; c <= colTo; c++) {
+          const label = normLabel(getCell(ws, r, c));
+          if (!label) continue;
+          if (rateVal === null && label.indexOf('actual rate') !== -1) {
+            const candidate = getCell(ws, r, c + 1);
+            if (isNum(candidate)) rateVal = candidate;
+          }
+          if (maturityVal === null && label.indexOf('maturity') !== -1) {
+            const candidate = getCell(ws, r, c + 1);
+            if (candidate !== undefined && candidate !== '') maturityVal = candidate;
+          }
         }
+      }
+      const row = rows.find(function(rw){ return normLabel(rw.name) === normLabel(anchor.canonical); });
+      if (row) {
+        if (rateVal !== null) row.actualRate = rateVal;
+        if (maturityVal !== null) row.maturity = maturityVal;
       }
     });
 
@@ -2462,6 +2484,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         dt = new Date(Number(yy), mm - 1, dd);
       } else {
         dt = new Date(s);
+        // Not a recognizable date shape at all (e.g. a loan's own "Perpetual (LoC)" instead
+        // of a maturity date) -- show the sheet's own text as-is rather than hiding it
+        // behind a dash or an "Invalid Date" string.
+        if (isNaN(dt.getTime())) return s || '—';
       }
     }
     if (!dt || isNaN(dt.getTime())) return '—';
