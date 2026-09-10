@@ -1424,7 +1424,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     boxAnchors.forEach(function(anchor, idx){
       const nextCol = (idx + 1 < boxAnchors.length) ? boxAnchors[idx + 1].col : anchor.col + 8;
       const colFrom = anchor.col, colTo = Math.min(nextCol - 1, anchor.col + 7);
-      let rateVal = null, maturityVal = null;
+      let rateVal = null, maturityVal = null, maxVal = null;
       for (let r = 1; r <= 10; r++) {
         for (let c = colFrom; c <= colTo; c++) {
           const label = normLabel(getCell(ws, r, c));
@@ -1437,12 +1437,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             const candidate = getCell(ws, r, c + 1);
             if (candidate !== undefined && candidate !== '') maturityVal = candidate;
           }
+          // Same box, in case it also carries its own max/ceiling rate (not confirmed
+          // present for every bank's box -- some loans here are fixed-rate and simply have
+          // no ceiling, in which case this stays blank same as before).
+          if (maxVal === null && (label.indexOf('max rate') !== -1 || label === 'max')) {
+            const candidate = getCell(ws, r, c + 1);
+            if (isNum(candidate)) maxVal = candidate;
+          }
         }
       }
       const row = rows.find(function(rw){ return normLabel(rw.name) === normLabel(anchor.canonical); });
       if (row) {
         if (rateVal !== null) row.actualRate = rateVal;
         if (maturityVal !== null) row.maturity = maturityVal;
+        if (maxVal !== null) row.maxRate = maxVal;
       }
     });
 
@@ -3047,13 +3055,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         rateTbl.innerHTML = `<tbody><tr><td class="sub" style="padding:10px 0;">Per-bank rates only available for the latest month.</td></tr></tbody>`;
       } else {
         rateTbl.innerHTML = `
-          <thead><tr><th>Bank</th><th>Actual Rate</th><th>Max Rate</th></tr></thead>
+          <thead><tr><th>Bank</th><th>Actual Rate</th></tr></thead>
           <tbody>
             ${rows.map(r => `
               <tr>
                 <td><div style="display:flex;align-items:center;gap:8px;">${bankLogoChip(r.name,{height:18})}${esc(r.name)}</div></td>
                 <td>${fmtPctPlain(r.actualRate,2)}</td>
-                <td>${fmtPctPlain(r.maxRate,2)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -3142,6 +3149,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         return { name: r.name, pct };
       })
       .filter(r => r.pct !== null) : [];
+    // Add an aggregate "Total" bar -- overall debt vs. overall bank balance across every
+    // bank (not just the ones with an active loan) -- so the blended ratio is visible
+    // alongside each individual bank's.
+    if (perBankAvailable && total && activeView.banks && activeView.banks.total) {
+      const totalBal = activeView.banks.total.balance;
+      if (typeof total.lineUsed === 'number' && totalBal && totalBal > 0) {
+        ratioRows.push({ name: 'Total', pct: (total.lineUsed / totalBal) * 100, isTotal: true });
+      }
+    }
     if (!perBankAvailable || !ratioRows.length) {
       if (charts['chart-loan-debt-ratio']) { charts['chart-loan-debt-ratio'].destroy(); delete charts['chart-loan-debt-ratio']; }
     } else {
@@ -3151,18 +3167,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           labels: ratioRows.map(r => r.name),
           datasets: [{
             data: ratioRows.map(r => r.pct),
-            backgroundColor: ratioRows.map(r => r.pct >= 30 ? '#ff7a7a' : '#3ddb9b'),
+            backgroundColor: ratioRows.map(r => r.isTotal ? '#d4b06a' : (r.pct >= 30 ? '#ff7a7a' : '#3ddb9b')),
             borderRadius: 5
           }]
         },
         options: {
           plugins: {
             legend: { display: false },
-            tooltip: { callbacks: { label: ctx => ctx.raw.toFixed(1) + '% of bank balance' } }
+            tooltip: { callbacks: { label: ctx => ctx.raw.toFixed(1) + '% of ' + (ratioRows[ctx.dataIndex].isTotal ? 'total bank balance' : 'bank balance') } }
           },
           scales: {
             y: { ticks: { color: CHART_DEFAULTS_TEXT, callback: v => v + '%' }, grid: { color: CHART_GRID }, suggestedMax: Math.max(35, ...ratioRows.map(r=>r.pct)) },
-            x: { ticks: { color: CHART_DEFAULTS_TEXT }, grid: { display: false } }
+            x: { ticks: { color: CHART_DEFAULTS_TEXT, font: { weight: ctx => (ratioRows[ctx.index] && ratioRows[ctx.index].isTotal) ? 'bold' : 'normal' } }, grid: { display: false } }
           },
           layout: { padding: { top: 22 } }
         },
