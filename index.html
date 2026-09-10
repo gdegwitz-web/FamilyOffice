@@ -1508,6 +1508,19 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const ws = wb.Sheets['Net Balances'];
     if (!ws) return [];
     const bounds = sheetBounds(ws);
+    // Loans & LoC and Accounts Receivable were just added to this sheet as their own
+    // monthly columns -- found by label (not a hardcoded position) across the header rows
+    // above the data, same defensive pattern used for every other sheet here, since their
+    // exact column isn't guaranteed to stay put between monthly files.
+    let loansCol = null, arCol = null;
+    for (let r = 1; r <= 4 && (loansCol === null || arCol === null); r++) {
+      for (let c = 1; c <= Math.max(bounds.maxCol, 20); c++) {
+        const label = normLabel(getCell(ws, r, c));
+        if (!label) continue;
+        if (loansCol === null && label.indexOf('loans') !== -1 && label.indexOf('loc') !== -1) loansCol = c;
+        if (arCol === null && (label.indexOf('accounts receivable') !== -1 || label === 'a/r')) arCol = c;
+      }
+    }
     const out = [];
     for (let r = 4; r <= bounds.maxRow; r++) {
       const date = getCell(ws, r, 3); // C
@@ -1516,8 +1529,15 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const totalLoan = safe(getCell(ws, r, 8), 0);       // H
       const realEstate = safe(getCell(ws, r, 9), 0);      // I
       const netWorth = safe(getCell(ws, r, 11), 0);        // K
+      // Normalized to this app's own sign convention (Loans & LoC negative, A/R positive --
+      // matching the latest month's Banks-sheet-driven card) regardless of how this sheet
+      // itself signs them, so the KPI card reads consistently across every date.
+      const loansRaw = loansCol !== null ? safe(getCell(ws, r, loansCol)) : null;
+      const arRaw = arCol !== null ? safe(getCell(ws, r, arCol)) : null;
+      const loansAndLoC = (loansRaw !== null && loansRaw !== undefined) ? -Math.abs(loansRaw) : null;
+      const accountsReceivable = (arRaw !== null && arRaw !== undefined) ? Math.abs(arRaw) : null;
       if (balanceInBanks === 0 && out.length > 0) break;
-      out.push({ date, balanceInBanks, totalLoan, realEstate, netWorth, netWorthWithRE: balanceInBanks + totalLoan + realEstate });
+      out.push({ date, balanceInBanks, totalLoan, realEstate, netWorth, netWorthWithRE: balanceInBanks + totalLoan + realEstate, loansAndLoC, accountsReceivable });
     }
     return out;
   }
@@ -1992,7 +2012,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           monthReturnGross: perfMonth ? perfMonth.gross : null,
           monthReturnNet: perfMonth ? perfMonth.net : null,
           ytdReturnGross: ytdGross,
-          ytdReturnNet: ytdNet
+          ytdReturnNet: ytdNet,
+          // Loans & LoC and Accounts Receivable now have their own dedicated monthly columns
+          // on the Net Balances sheet (parseNetBalancesMonthly), so use those directly when
+          // present. Falls back to the old approximation (this sheet's aggregate debt
+          // figure, A/R left blank) for any file/month that predates that addition.
+          loansAndLoC: (nb && nb.loansAndLoC !== null && nb.loansAndLoC !== undefined) ? nb.loansAndLoC : -totalLoan,
+          accountsReceivable: (nb && nb.accountsReceivable !== null && nb.accountsReceivable !== undefined) ? nb.accountsReceivable : null,
+          netFinancialAssets: banksTotal
+            + ((nb && nb.loansAndLoC !== null && nb.loansAndLoC !== undefined) ? nb.loansAndLoC : -totalLoan)
+            + ((nb && nb.accountsReceivable) ? nb.accountsReceivable : 0)
         }
       },
       bankDetails,
@@ -2614,11 +2643,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     // repeated here. Accounts Receivable is not present in every monthly file (some months
     // simply have no A/R line item) -- fmtUSD() shows an em dash for those, same as any
     // other missing figure.
+    const arSub = (!activeView.isLatest && (b && b.total.accountsReceivable === null))
+      ? 'A/R (no historical data for this date)' : 'A/R';
     const cards = [
       { label:'Balance in Banks', value: fmtUSD(b && b.total.balance), sub: 'As of ' + viewDateLabel },
-      { label:'Loans & LoC', value: fmtUSD(b && b.total.loansAndLoC), sub: 'Loans and lines of credit' },
-      { label:'Accounts Receivable', value: fmtUSD(b && b.total.accountsReceivable), sub: 'A/R' },
-      { label:'Net Financial Assets', value: fmtUSD(b && b.total.netFinancialAssets), sub: 'Balance in Banks − Loans & LoC + A/R' },
+      { label:'Loans & LoC', value: fmtUSD(b && b.total.loansAndLoC), sub: 'Loans and lines of credit' + returnSubNote },
+      { label:'Accounts Receivable', value: fmtUSD(b && b.total.accountsReceivable), sub: arSub },
+      { label:'Net Financial Assets', value: fmtUSD(b && b.total.netFinancialAssets), sub: 'Balance in Banks − Loans & LoC + A/R' + returnSubNote },
       { label:'Month Return (Net)', value: fmtPct(b && b.total.monthReturnNet), sub: 'Gross: ' + fmtPct(b && b.total.monthReturnGross) + returnSubNote, badge:true, badgeVal: b && b.total.monthReturnNet },
       { label:'YTD Return (Net)', value: fmtPct(b && b.total.ytdReturnNet), sub: 'Gross: ' + fmtPct(b && b.total.ytdReturnGross) + returnSubNote, badge:true, badgeVal: b && b.total.ytdReturnNet }
     ];
