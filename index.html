@@ -961,6 +961,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — shows exactly what the app read from the "Banks" sheet, cell by cell, plus which rows it matched for Loans &amp; LoC / Accounts Receivable / Net Financial Assets.</p>
         <pre id="debug-banks-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
       </div>
+
+      <div class="panel" style="margin-top:14px;">
+        <h3>Debug: Loan Sheet Raw Data (temporary)</h3>
+        <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — shows exactly what the app read from the "Loan" sheet around the rate/maturity boxes (columns Q–AH, rows 1–10), so the real cell positions can be confirmed instead of guessed.</p>
+        <pre id="debug-loan-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
+      </div>
     </section>
 
   </main>
@@ -1418,11 +1424,25 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
     });
 
+    // TEMPORARY DIAGNOSTIC: dump every non-empty cell across rows 1-20, columns A-AH (1-34)
+    // of the Loan sheet, so the real position of the rate/maturity boxes can be confirmed
+    // from a screenshot instead of guessed blind. Safe to remove once the per-bank actual
+    // rate and maturity date lookups are all confirmed working.
+    const loanDebugDump = [];
+    for (let r = 1; r <= 20; r++) {
+      for (let c = 1; c <= 34; c++) {
+        const raw = getCell(ws, r, c);
+        if (raw === undefined || raw === null || raw === '') continue;
+        loanDebugDump.push(colToLetter(c) + r + ': ' + JSON.stringify(raw) + ' (' + (typeof raw) + ')');
+      }
+    }
+
     return {
       rows,
       total,
       rates: { weightedAvgActual: weightedAvgActual, weightedAvgMax: weightedAvgMax, weightedAvgMin: weightedAvgMin, perBank: perBankRates },
-      moneyGenerated: moneyGenerated
+      moneyGenerated: moneyGenerated,
+      debugDump: loanDebugDump
     };
   }
 
@@ -3310,6 +3330,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderDeudaGastos();
     renderIS();
     renderBanksDebugDump();
+    renderLoanDebugDump();
   }
 
   // TEMPORARY DIAGNOSTIC: renders the raw cell-by-cell dump collected in parseBanks() into
@@ -3325,6 +3346,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       '  arRow=' + total.debugArRow + '  netFinRow=' + total.debugNetFinRow +
       '  monthReturnNet=' + total.debugMonthReturnNet + '\n\n';
     out += total.debugDump.join('\n');
+    el.textContent = out;
+  }
+
+  function renderLoanDebugDump(){
+    const el = document.getElementById('debug-loan-dump');
+    if (!el) return;
+    const loan = state && state.loan;
+    if (!loan || !loan.debugDump) { el.textContent = 'No debug data available.'; return; }
+    let out = 'Banks matched: ' + loan.rows.map(function(r){ return r.name + ' (rate=' + r.actualRate + ', maturity=' + JSON.stringify(r.maturity) + ')'; }).join('; ') + '\n\n';
+    out += loan.debugDump.join('\n');
     el.textContent = out;
   }
 
