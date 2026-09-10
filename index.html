@@ -1383,14 +1383,22 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     // stays attached to the right bank even if these boxes move between monthly files. Read
     // with cellDates:true at the workbook level, so this is typically already a JS Date;
     // fmtDate() in app.js handles both a Date and a raw value.
+    // Confirmed by the user: AC3 holds UBS Suiza's actual rate directly above its AC4
+    // maturity date -- so each of these three boxes carries BOTH figures for that bank
+    // (one row apart, same column), not just the maturity date. That makes this box the
+    // authoritative source for these three banks' actual rate, overriding whatever the
+    // vertical "Actual (USD)" table above found (or failed to find) for the same bank.
     const MATURITY_CELLS = [
-      { row: 2, col: 19 }, // S2
-      { row: 4, col: 24 }, // X4
-      { row: 4, col: 29 }  // AC4
+      { row: 2, col: 19 }, // S2 (rate one row up at S1)
+      { row: 4, col: 24 }, // X4 (rate one row up at X3)
+      { row: 4, col: 29 }  // AC4 (rate one row up at AC3)
     ];
     MATURITY_CELLS.forEach(function(cellRef){
-      const val = getCell(ws, cellRef.row, cellRef.col);
-      if (val === undefined || val === '') return;
+      const maturityVal = getCell(ws, cellRef.row, cellRef.col);
+      const rateVal = getCell(ws, cellRef.row - 1, cellRef.col);
+      const hasMaturity = maturityVal !== undefined && maturityVal !== '';
+      const hasRate = isNum(rateVal);
+      if (!hasMaturity && !hasRate) return;
       let matchedBank = null;
       for (let rr = cellRef.row - 2; rr <= cellRef.row + 1 && !matchedBank; rr++) {
         for (let cc = cellRef.col - 8; cc <= cellRef.col + 3 && !matchedBank; cc++) {
@@ -1403,7 +1411,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
       if (matchedBank) {
         const row = rows.find(function(rw){ return normLabel(rw.name) === normLabel(matchedBank); });
-        if (row) row.maturity = val;
+        if (row) {
+          if (hasMaturity) row.maturity = maturityVal;
+          if (hasRate) row.actualRate = rateVal;
+        }
       }
     });
 
@@ -2411,8 +2422,29 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     return '';
   }
   function fmtDate(d){
-    if (!d) return '—';
-    const dt = (d instanceof Date) ? d : new Date(d);
+    if (d === null || d === undefined || d === '') return '—';
+    let dt;
+    if (d instanceof Date) {
+      dt = d;
+    } else if (typeof d === 'number') {
+      // Raw Excel serial date (days since 1899-12-30) -- happens when a cell holds a date
+      // but isn't formatted as one in Excel, so cellDates:true doesn't convert it for us.
+      dt = new Date(Date.UTC(1899, 11, 30) + d * 86400000);
+    } else {
+      const s = String(d).trim();
+      // Cells entered as plain text in DD/MM/YYYY (or DD-MM-YYYY, etc.) don't parse
+      // reliably via `new Date(string)` -- JS assumes MM/DD/YYYY and silently produces
+      // "Invalid Date" or the wrong day/month. Parse that shape explicitly first.
+      const m = s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})$/);
+      if (m) {
+        let dd = Number(m[1]), mm = Number(m[2]), yy = m[3];
+        if (yy.length === 2) yy = (Number(yy) < 50 ? '20' : '19') + yy;
+        dt = new Date(Number(yy), mm - 1, dd);
+      } else {
+        dt = new Date(s);
+      }
+    }
+    if (!dt || isNaN(dt.getTime())) return '—';
     return dt.toLocaleDateString('en-US', { year:'numeric', month:'long', day:'numeric' });
   }
   function monthShort(m){
