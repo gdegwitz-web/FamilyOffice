@@ -1514,26 +1514,31 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const ws = wb.Sheets['Net Balances'];
     if (!ws) return [];
     const bounds = sheetBounds(ws);
-    // NOTE: Balance/Total Loan/Real Estate/Net Worth below are still read from hardcoded
-    // columns D/H/I/K. The user just inserted two new columns (Loans & LoC, Accounts
-    // Receivable) into this sheet, which -- if inserted to the left of D/H/I/K -- would
-    // shift every one of these hardcoded positions and silently break them (this is exactly
-    // the kind of drift this app defends against with label search everywhere else; this
-    // sheet just hasn't been converted yet). Loans & LoC / Accounts Receivable themselves
-    // are found by label since they're brand new and have no established position to trust.
-    let loansCol = null, arCol = null;
-    for (let r = 1; r <= 4 && (loansCol === null || arCol === null); r++) {
-      for (let c = 1; c <= Math.max(bounds.maxCol, 20); c++) {
-        const label = normLabel(getCell(ws, r, c));
-        if (!label) continue;
-        if (loansCol === null && label.indexOf('loans') !== -1 && label.indexOf('loc') !== -1) loansCol = c;
-        if (arCol === null && (label.indexOf('accounts receivable') !== -1 || label === 'a/r')) arCol = c;
+    // Every field here is found by its own header label instead of a hardcoded column --
+    // confirmed via a raw dump that inserting the new "Accounts Receivable" column pushed
+    // "Real Estate" and "Net Worth" one column to the right (I->J, K->L), which silently
+    // broke the old hardcoded reads (the Net Worth history chart was actually plotting the
+    // sheet's separate "Inflow/Outflow" column). Label search survives this kind of shift
+    // the same way every other sheet in this app already does. There is no separate "Loans &
+    // LoC" column -- this sheet's own "Total Loan" is that same figure.
+    function findCol(labelText, fallback) {
+      for (let r = 1; r <= 5; r++) {
+        for (let c = 1; c <= Math.max(bounds.maxCol, 20); c++) {
+          const label = normLabel(getCell(ws, r, c));
+          if (label && label.indexOf(normLabel(labelText)) !== -1) return c;
+        }
       }
+      return fallback;
     }
+    const dateCol = 3; // "C" -- consistently the date column across every version of this file so far
+    const balCol = findCol('Balance in Banks', 4);
+    const totalLoanCol = findCol('Total Loan', 8);
+    const arCol = findCol('Accounts Receivable', null);
+    const reCol = findCol('Real Estate', 9);
+    const netWorthCol = findCol('Net Worth', 11);
+
     // TEMPORARY DIAGNOSTIC: dump every non-empty cell in the header rows (1-6) so the real
-    // current column layout can be confirmed from a screenshot instead of guessed -- the
-    // Financial Net Worth history chart went to ~$0 after the sheet was edited, which is the
-    // signature of a hardcoded column silently pointing at the wrong cell now.
+    // current column layout can be confirmed from a screenshot instead of guessed.
     const netBalDebugDump = [];
     for (let r = 1; r <= 6; r++) {
       for (let c = 1; c <= Math.max(bounds.maxCol, 20); c++) {
@@ -1542,23 +1547,24 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         netBalDebugDump.push(colToLetter(c) + r + ': ' + JSON.stringify(raw) + ' (' + (typeof raw) + ')');
       }
     }
+
     const out = [];
     for (let r = 4; r <= bounds.maxRow; r++) {
-      const date = getCell(ws, r, 3); // C
+      const date = getCell(ws, r, dateCol);
       if (!(date instanceof Date)) continue;
-      const balanceInBanks = safe(getCell(ws, r, 4), 0); // D
-      const totalLoan = safe(getCell(ws, r, 8), 0);       // H
-      const realEstate = safe(getCell(ws, r, 9), 0);      // I
-      const netWorth = safe(getCell(ws, r, 11), 0);        // K
+      const balanceInBanks = safe(getCell(ws, r, balCol), 0);
+      const totalLoan = safe(getCell(ws, r, totalLoanCol), 0);
+      const realEstate = safe(getCell(ws, r, reCol), 0);
+      const netWorth = safe(getCell(ws, r, netWorthCol), 0);
       // Normalized to this app's own sign convention (Loans & LoC negative, A/R positive --
       // matching the latest month's Banks-sheet-driven card) regardless of how this sheet
-      // itself signs them, so the KPI card reads consistently across every date.
-      const loansRaw = loansCol !== null ? safe(getCell(ws, r, loansCol)) : null;
+      // itself signs them, so the KPI card reads consistently across every date. A/R has no
+      // retroactive data for older months -- those simply stay null (honest "no data").
       const arRaw = arCol !== null ? safe(getCell(ws, r, arCol)) : null;
-      const loansAndLoC = (loansRaw !== null && loansRaw !== undefined) ? -Math.abs(loansRaw) : null;
       const accountsReceivable = (arRaw !== null && arRaw !== undefined) ? Math.abs(arRaw) : null;
+      const loansAndLoC = -Math.abs(totalLoan);
       if (balanceInBanks === 0 && out.length > 0) break;
-      out.push({ date, balanceInBanks, totalLoan, realEstate, netWorth, netWorthWithRE: balanceInBanks + totalLoan + realEstate, loansAndLoC, accountsReceivable });
+      out.push({ date, balanceInBanks, totalLoan, realEstate, netWorth, netWorthWithRE: netWorth + realEstate, loansAndLoC, accountsReceivable });
     }
     out.debugDump = netBalDebugDump; // stashed on the array itself -- consumed only right after a fresh upload, before any Firestore round-trip drops it
     return out;
