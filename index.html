@@ -2476,6 +2476,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     let dt;
     if (d instanceof Date) {
       dt = d;
+    } else if (d && typeof d.toDate === 'function') {
+      // Firestore Timestamp -- a JS Date written to Firestore comes back as one of these on
+      // the next page load (the cached-document listener), not a native Date, so it needs
+      // this conversion before toLocaleDateString() will work on it.
+      dt = d.toDate();
+    } else if (d && typeof d.seconds === 'number') {
+      // Plain-object shape of a Firestore Timestamp (e.g. after JSON round-tripping).
+      dt = new Date(d.seconds * 1000 + Math.floor((d.nanoseconds || 0) / 1e6));
     } else if (typeof d === 'number') {
       // Raw Excel serial date (days since 1899-12-30) -- happens when a cell holds a date
       // but isn't formatted as one in Excel, so cellDates:true doesn't convert it for us.
@@ -3009,6 +3017,29 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
   };
 
+  // Draws the % value above each bar on the debt-ratio chart -- this app has no
+  // chartjs-plugin-datalabels loaded, so a small custom afterDatasetsDraw plugin (same
+  // pattern as waterfallLabelsPlugin above) stands in for it.
+  const debtRatioLabelsPlugin = {
+    id: 'debtRatioLabels',
+    afterDatasetsDraw(chart){
+      if (!chart.config._debtRatioLabels) return;
+      const meta = chart.getDatasetMeta(0);
+      const data = chart.data.datasets[0].data;
+      const { ctx } = chart;
+      ctx.save();
+      ctx.font = "600 11.5px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+      ctx.textAlign = 'center';
+      ctx.fillStyle = CHART_DEFAULTS_TEXT;
+      meta.data.forEach((bar, i) => {
+        const v = data[i];
+        if (v === undefined || v === null) return;
+        ctx.fillText(v.toFixed(1) + '%', bar.x, bar.y - 8);
+      });
+      ctx.restore();
+    }
+  };
+
   function renderDeudaGastos(){
     if (!activeView) return;
     renderLoanSection();
@@ -3161,13 +3192,17 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (!perBankAvailable || !ratioRows.length) {
       if (charts['chart-loan-debt-ratio']) { charts['chart-loan-debt-ratio'].destroy(); delete charts['chart-loan-debt-ratio']; }
     } else {
+      // Reuse the same bank -> color mapping as the Debt Composition doughnut/legend above,
+      // so a given bank reads as the same color across both charts on this tab.
+      const bankColorMap = {};
+      loanEntries.forEach(e => { bankColorMap[e[0]] = e[2]; });
       const chart = makeChart('chart-loan-debt-ratio', {
         type: 'bar',
         data: {
           labels: ratioRows.map(r => r.name),
           datasets: [{
             data: ratioRows.map(r => r.pct),
-            backgroundColor: ratioRows.map(r => r.isTotal ? '#d4b06a' : (r.pct >= 30 ? '#ff7a7a' : '#3ddb9b')),
+            backgroundColor: ratioRows.map(r => r.isTotal ? '#d4b06a' : (bankColorMap[r.name] || '#6c9bff')),
             borderRadius: 5
           }]
         },
@@ -3180,11 +3215,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             y: { ticks: { color: CHART_DEFAULTS_TEXT, callback: v => v + '%' }, grid: { color: CHART_GRID }, suggestedMax: Math.max(35, ...ratioRows.map(r=>r.pct)) },
             x: { ticks: { color: CHART_DEFAULTS_TEXT, font: { weight: ctx => (ratioRows[ctx.index] && ratioRows[ctx.index].isTotal) ? 'bold' : 'normal' } }, grid: { display: false } }
           },
-          layout: { padding: { top: 22 } }
+          layout: { padding: { top: 26 } }
         },
-        plugins: [debtThresholdPlugin]
+        plugins: [debtThresholdPlugin, debtRatioLabelsPlugin]
       });
-      if (chart) chart.config._debtThreshold = true;
+      if (chart) { chart.config._debtThreshold = true; chart.config._debtRatioLabels = true; }
     }
   }
   function renderExpensesSection(){
