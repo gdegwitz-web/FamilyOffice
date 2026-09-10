@@ -943,6 +943,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       <div class="admin-export-box">
         <p><svg class="icon" viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><circle cx="12" cy="12" r="9"/></svg>Changes you make here (users, and the portfolio when you upload a new Excel file) save straight to the database and are available to the whole family within seconds — there is nothing to download or publish.</p>
       </div>
+
+      <div class="panel" style="margin-top:14px;">
+        <h3>Debug: Banks Sheet Raw Data (temporary)</h3>
+        <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — shows exactly what the app read from the "Banks" sheet, cell by cell, plus which rows it matched for Loans &amp; LoC / Accounts Receivable / Net Financial Assets.</p>
+        <pre id="debug-banks-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
+      </div>
     </section>
 
   </main>
@@ -1178,6 +1184,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     // separately hardcoded row number.
     const monthReturnNet = netFinRow ? safe(getCell(ws, netFinRow, 12)) : null; // col L
 
+    // TEMPORARY DIAGNOSTIC: dump every non-empty cell in columns B-H (2-8) for rows 10-40 of
+    // the Banks sheet, so the exact label text/column/value type can be inspected from a
+    // screenshot in the app instead of guessing blind. Safe to remove once the Loans & LoC /
+    // Accounts Receivable / Net Financial Assets lookup is confirmed working.
+    const debugDump = [];
+    const colLetters = { 2:'B', 3:'C', 4:'D', 5:'E', 6:'F', 7:'G', 8:'H' };
+    for (let r = 10; r <= 40; r++) {
+      for (let cIdx = 2; cIdx <= 8; cIdx++) {
+        const raw = getCell(ws, r, cIdx);
+        if (raw === undefined || raw === null || raw === '') continue;
+        const vtype = typeof raw;
+        debugDump.push(colLetters[cIdx] + r + ': ' + JSON.stringify(raw) + ' (' + vtype + ')');
+      }
+    }
+
     return {
       rows,
       total: {
@@ -1188,7 +1209,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         ytdReturnNet: safe(getCell(ws, totalRow, 17)),     // Q, Total row
         loansAndLoC: loansRow ? safe(getCell(ws, loansRow, 8)) : null,       // stored negative in the sheet
         accountsReceivable: arRow ? safe(getCell(ws, arRow, 8)) : null,     // present in some months, not others
-        netFinancialAssets: netFinRow ? safe(getCell(ws, netFinRow, 8)) : null
+        netFinancialAssets: netFinRow ? safe(getCell(ws, netFinRow, 8)) : null,
+        debugDump: debugDump,
+        debugTotalRow: totalRow,
+        debugLoansRow: loansRow,
+        debugArRow: arRow,
+        debugNetFinRow: netFinRow
       }
     };
   }
@@ -2965,6 +2991,22 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderHistorico();
     renderDeudaGastos();
     renderIS();
+    renderBanksDebugDump();
+  }
+
+  // TEMPORARY DIAGNOSTIC: renders the raw cell-by-cell dump collected in parseBanks() into
+  // the Admin tab so the exact Banks sheet content (labels, columns, value types) can be
+  // inspected via screenshot. Safe to remove once Loans & LoC / Accounts Receivable / Net
+  // Financial Assets are confirmed working.
+  function renderBanksDebugDump(){
+    const el = document.getElementById('debug-banks-dump');
+    if (!el) return;
+    const total = state && state.banks && state.banks.total;
+    if (!total || !total.debugDump) { el.textContent = 'No debug data available.'; return; }
+    let out = 'totalRow=' + total.debugTotalRow + '  loansRow=' + total.debugLoansRow +
+      '  arRow=' + total.debugArRow + '  netFinRow=' + total.debugNetFinRow + '\n\n';
+    out += total.debugDump.join('\n');
+    el.textContent = out;
   }
 
   function switchView(view){
