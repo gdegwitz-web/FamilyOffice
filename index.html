@@ -3026,16 +3026,35 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (!chart.config._debtRatioLabels) return;
       const meta = chart.getDatasetMeta(0);
       const data = chart.data.datasets[0].data;
-      const { ctx } = chart;
+      const rows = chart.config._ratioRows || [];
+      const { ctx, chartArea } = chart;
       ctx.save();
-      ctx.font = "600 11.5px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
       ctx.textAlign = 'center';
-      ctx.fillStyle = CHART_DEFAULTS_TEXT;
       meta.data.forEach((bar, i) => {
         const v = data[i];
         if (v === undefined || v === null) return;
-        ctx.fillText(v.toFixed(1) + '%', bar.x, bar.y - 8);
+        const isTotal = rows[i] && rows[i].isTotal;
+        ctx.font = isTotal
+          ? "800 15px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+          : "600 11.5px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
+        ctx.fillStyle = isTotal ? '#eaf6ff' : CHART_DEFAULTS_TEXT;
+        ctx.fillText(v.toFixed(1) + '%', bar.x, bar.y - (isTotal ? 12 : 8));
       });
+      // Divider separating the Total bar (the headline figure) from the per-bank
+      // breakdown that follows it.
+      const totalIdx = rows.findIndex(r => r && r.isTotal);
+      if (totalIdx !== -1 && totalIdx + 1 < meta.data.length && chartArea) {
+        const a = meta.data[totalIdx], b = meta.data[totalIdx + 1];
+        const dividerX = (a.x + a.width / 2 + b.x - b.width / 2) / 2;
+        ctx.strokeStyle = 'rgba(255,255,255,.14)';
+        ctx.setLineDash([4,4]);
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(dividerX, chartArea.top);
+        ctx.lineTo(dividerX, chartArea.bottom);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
       ctx.restore();
     }
   };
@@ -3181,12 +3200,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       })
       .filter(r => r.pct !== null) : [];
     // Add an aggregate "Total" bar -- overall debt vs. overall bank balance across every
-    // bank (not just the ones with an active loan) -- so the blended ratio is visible
-    // alongside each individual bank's.
+    // bank (not just the ones with an active loan) -- placed FIRST and styled as the
+    // headline figure of this chart (brand gradient fill, bold oversized label, a divider
+    // separating it from the per-bank breakdown that follows), per instruction.
     if (perBankAvailable && total && activeView.banks && activeView.banks.total) {
       const totalBal = activeView.banks.total.balance;
       if (typeof total.lineUsed === 'number' && totalBal && totalBal > 0) {
-        ratioRows.push({ name: 'Total', pct: (total.lineUsed / totalBal) * 100, isTotal: true });
+        ratioRows.unshift({ name: 'Total', pct: (total.lineUsed / totalBal) * 100, isTotal: true });
       }
     }
     if (!perBankAvailable || !ratioRows.length) {
@@ -3202,8 +3222,26 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           labels: ratioRows.map(r => r.name),
           datasets: [{
             data: ratioRows.map(r => r.pct),
-            backgroundColor: ratioRows.map(r => r.isTotal ? '#d4b06a' : (bankColorMap[r.name] || '#6c9bff')),
-            borderRadius: 5
+            // Total gets this app's own signature green -> teal -> blue gradient (same
+            // family as the title/accent gradient elsewhere) so it reads as the headline
+            // figure; individual banks keep their Debt Composition colors.
+            backgroundColor: function(ctx){
+              const row = ratioRows[ctx.dataIndex];
+              if (!row) return '#6c9bff';
+              if (row.isTotal) {
+                const area = ctx.chart.chartArea;
+                if (!area) return '#35c2b0';
+                const g = ctx.chart.ctx.createLinearGradient(0, area.bottom, 0, area.top);
+                g.addColorStop(0, '#3ddb9b');
+                g.addColorStop(0.55, '#35c2b0');
+                g.addColorStop(1, '#6c9bff');
+                return g;
+              }
+              return bankColorMap[row.name] || '#6c9bff';
+            },
+            borderRadius: 5,
+            borderWidth: ratioRows.map(r => r.isTotal ? 2 : 0),
+            borderColor: ratioRows.map(r => r.isTotal ? '#eaf6ff' : 'transparent')
           }]
         },
         options: {
@@ -3213,13 +3251,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           },
           scales: {
             y: { ticks: { color: CHART_DEFAULTS_TEXT, callback: v => v + '%' }, grid: { color: CHART_GRID }, suggestedMax: Math.max(35, ...ratioRows.map(r=>r.pct)) },
-            x: { ticks: { color: CHART_DEFAULTS_TEXT, font: { weight: ctx => (ratioRows[ctx.index] && ratioRows[ctx.index].isTotal) ? 'bold' : 'normal' } }, grid: { display: false } }
+            x: { ticks: { color: CHART_DEFAULTS_TEXT, font: { weight: ctx => (ratioRows[ctx.index] && ratioRows[ctx.index].isTotal) ? 'bold' : 'normal', size: ctx => (ratioRows[ctx.index] && ratioRows[ctx.index].isTotal) ? 13 : 11 } }, grid: { display: false } }
           },
-          layout: { padding: { top: 26 } }
+          layout: { padding: { top: 30 } }
         },
         plugins: [debtThresholdPlugin, debtRatioLabelsPlugin]
       });
-      if (chart) { chart.config._debtThreshold = true; chart.config._debtRatioLabels = true; }
+      if (chart) { chart.config._debtThreshold = true; chart.config._debtRatioLabels = true; chart.config._ratioRows = ratioRows; }
     }
   }
   function renderExpensesSection(){
