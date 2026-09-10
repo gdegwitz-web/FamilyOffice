@@ -967,6 +967,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — shows exactly what the app read from the "Loan" sheet around the rate/maturity boxes (columns Q–AH, rows 1–10), so the real cell positions can be confirmed instead of guessed.</p>
         <pre id="debug-loan-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
       </div>
+
+      <div class="panel" style="margin-top:14px;">
+        <h3>Debug: Net Balances Sheet Raw Data (temporary)</h3>
+        <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — shows exactly what the app read from the "Net Balances" sheet's header rows (1–6), so the current column layout can be confirmed after the new Loans & LoC / Accounts Receivable columns were added.</p>
+        <pre id="debug-netbal-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
+      </div>
     </section>
 
   </main>
@@ -1508,10 +1514,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const ws = wb.Sheets['Net Balances'];
     if (!ws) return [];
     const bounds = sheetBounds(ws);
-    // Loans & LoC and Accounts Receivable were just added to this sheet as their own
-    // monthly columns -- found by label (not a hardcoded position) across the header rows
-    // above the data, same defensive pattern used for every other sheet here, since their
-    // exact column isn't guaranteed to stay put between monthly files.
+    // NOTE: Balance/Total Loan/Real Estate/Net Worth below are still read from hardcoded
+    // columns D/H/I/K. The user just inserted two new columns (Loans & LoC, Accounts
+    // Receivable) into this sheet, which -- if inserted to the left of D/H/I/K -- would
+    // shift every one of these hardcoded positions and silently break them (this is exactly
+    // the kind of drift this app defends against with label search everywhere else; this
+    // sheet just hasn't been converted yet). Loans & LoC / Accounts Receivable themselves
+    // are found by label since they're brand new and have no established position to trust.
     let loansCol = null, arCol = null;
     for (let r = 1; r <= 4 && (loansCol === null || arCol === null); r++) {
       for (let c = 1; c <= Math.max(bounds.maxCol, 20); c++) {
@@ -1519,6 +1528,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         if (!label) continue;
         if (loansCol === null && label.indexOf('loans') !== -1 && label.indexOf('loc') !== -1) loansCol = c;
         if (arCol === null && (label.indexOf('accounts receivable') !== -1 || label === 'a/r')) arCol = c;
+      }
+    }
+    // TEMPORARY DIAGNOSTIC: dump every non-empty cell in the header rows (1-6) so the real
+    // current column layout can be confirmed from a screenshot instead of guessed -- the
+    // Financial Net Worth history chart went to ~$0 after the sheet was edited, which is the
+    // signature of a hardcoded column silently pointing at the wrong cell now.
+    const netBalDebugDump = [];
+    for (let r = 1; r <= 6; r++) {
+      for (let c = 1; c <= Math.max(bounds.maxCol, 20); c++) {
+        const raw = getCell(ws, r, c);
+        if (raw === undefined || raw === null || raw === '') continue;
+        netBalDebugDump.push(colToLetter(c) + r + ': ' + JSON.stringify(raw) + ' (' + (typeof raw) + ')');
       }
     }
     const out = [];
@@ -1539,6 +1560,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       if (balanceInBanks === 0 && out.length > 0) break;
       out.push({ date, balanceInBanks, totalLoan, realEstate, netWorth, netWorthWithRE: balanceInBanks + totalLoan + realEstate, loansAndLoC, accountsReceivable });
     }
+    out.debugDump = netBalDebugDump; // stashed on the array itself -- consumed only right after a fresh upload, before any Firestore round-trip drops it
     return out;
   }
 
@@ -3477,6 +3499,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderIS();
     renderBanksDebugDump();
     renderLoanDebugDump();
+    renderNetBalancesDebugDump();
   }
 
   // TEMPORARY DIAGNOSTIC: renders the raw cell-by-cell dump collected in parseBanks() into
@@ -3502,6 +3525,19 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (!loan || !loan.debugDump) { el.textContent = 'No debug data available.'; return; }
     let out = 'Banks matched: ' + loan.rows.map(function(r){ return r.name + ' (rate=' + r.actualRate + ', maturity=' + JSON.stringify(r.maturity) + ')'; }).join('; ') + '\n\n';
     out += loan.debugDump.join('\n');
+    el.textContent = out;
+  }
+
+  function renderNetBalancesDebugDump(){
+    const el = document.getElementById('debug-netbal-dump');
+    if (!el) return;
+    const series = state && state.netBalancesMonthly;
+    if (!series || !series.debugDump) { el.textContent = 'No debug data available (only populated right after a fresh Excel upload, not after a page reload).'; return; }
+    const sample = series[0] || {};
+    let out = 'First parsed row: date=' + sample.date + ' balanceInBanks=' + sample.balanceInBanks +
+      ' totalLoan=' + sample.totalLoan + ' realEstate=' + sample.realEstate + ' netWorth=' + sample.netWorth +
+      ' loansAndLoC=' + sample.loansAndLoC + ' accountsReceivable=' + sample.accountsReceivable + '\n\n';
+    out += series.debugDump.join('\n');
     el.textContent = out;
   }
 
