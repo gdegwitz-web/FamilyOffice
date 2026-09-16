@@ -2034,9 +2034,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (priorDecBalance && priorDecNb) {
       const beginBalance = priorDecBalance.totalBalance;
       const beginNFA = priorDecNb.balanceInBanks + priorDecNb.loansAndLoC + (priorDecNb.accountsReceivable || 0);
-      const ytdTransfers = (result.consolidatedMonthlySeries || [])
-        .filter(e => e.year === year && e.month <= month)
-        .reduce((s, e) => s + (e.transfersWithdrawals || 0), 0);
+      // Data sheet column BD (Transfers/Withdrawals) is a running YTD cumulative total,
+      // not a per-month delta -- so the target month's own value already IS the YTD sum.
+      // Do not sum across months (that would compound the cumulative figure).
+      const ytdTransfers = (cons && typeof cons.transfersWithdrawals === 'number') ? cons.transfersWithdrawals : 0;
       if (beginNFA) {
         ytdNetExact = (banksTotal - beginBalance - ytdTransfers) / beginNFA;
       }
