@@ -673,7 +673,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   <nav class="tabs" id="tabs" style="display:none;">
     <button data-view="resumen" class="active"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 14l4-5 3 3 5-7"/></svg>Summary</button>
-    <button data-view="entidades"><svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6"/></svg>By Entity</button>
+    <button data-view="entidades"><svg class="icon" viewBox="0 0 24 24"><path d="M3 21h18"/><path d="M5 21V9l7-5 7 5v12"/><path d="M9 21v-6h6v6"/></svg>Banks</button>
     <button data-view="historico"><svg class="icon" viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M6 16l4-6 4 3 5-8"/></svg>Historical</button>
     <button data-view="deuda"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v10M9 9.5c0-1.4 1.3-2.5 3-2.5s3 1.1 3 2.4c0 3.1-6 1.6-6 4.7 0 1.3 1.3 2.4 3 2.4s3-1.1 3-2.5"/></svg>Debt</button>
     <button data-view="gastos"><svg class="icon" viewBox="0 0 24 24"><path d="M3 7h18v13H3z"/><path d="M3 7l3-4h12l3 4"/><path d="M9 11a3 3 0 0 0 6 0"/></svg>Expenses</button>
@@ -935,7 +935,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
               <label>Visible Tabs</label>
               <div class="checkbox-row" id="uf-tabs">
                 <label class="checkbox-chip"><input type="checkbox" value="resumen" checked> Summary</label>
-                <label class="checkbox-chip"><input type="checkbox" value="entidades" checked> By Entity</label>
+                <label class="checkbox-chip"><input type="checkbox" value="entidades" checked> Banks</label>
                 <label class="checkbox-chip"><input type="checkbox" value="historico" checked> Historical</label>
                 <label class="checkbox-chip"><input type="checkbox" value="deuda" checked> Debt</label>
                 <label class="checkbox-chip"><input type="checkbox" value="gastos" checked> Expenses</label>
@@ -972,6 +972,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <h3>Debug: Net Balances Sheet Raw Data (temporary)</h3>
         <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — shows exactly what the app read from the "Net Balances" sheet's header rows (1–6), so the current column layout can be confirmed after the new Loans & LoC / Accounts Receivable columns were added.</p>
         <pre id="debug-netbal-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
+      </div>
+
+      <div class="panel" style="margin-top:14px;">
+        <h3>Debug: Performance Sheet Row Labels (temporary)</h3>
+        <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — lists every label found in column G of the "Performance" sheet, so we can confirm whether it stores a YTD return series directly (not just monthly).</p>
+        <pre id="debug-perf-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
       </div>
     </section>
 
@@ -1588,6 +1594,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const { year, month } = dateMap[c];
       out.push({ year, month, gross: g, net: n });
     }
+    // TEMPORARY DIAGNOSTIC: dump every non-empty label in column G (rows 1-60) so it can be
+    // confirmed from a screenshot whether this sheet also stores a YTD series directly (the
+    // app currently approximates historical YTD by compounding these monthly CEMS Net
+    // values, which doesn't match the Banks sheet's own period-based/cash-flow-aware YTD
+    // calc when there are meaningful transfers or withdrawals during the year).
+    const perfDebugDump = [];
+    for (let r = 1; r <= 60; r++) {
+      const raw = getCell(ws, r, 7);
+      if (raw === undefined || raw === null || raw === '') continue;
+      perfDebugDump.push('G' + r + ': ' + JSON.stringify(raw) + ' (' + (typeof raw) + ')');
+    }
+    out.debugDump = perfDebugDump;
     return out;
   }
 
@@ -1700,7 +1718,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         equity: safe(getCell(ws, r, 32), 0),      // AF
         alternative: safe(getCell(ws, r, 33), 0)  // AG
       };
-      out.push({ year: date.getFullYear(), month: date.getMonth(), date, totalBalance, banks, allocation });
+      // Net Transfers/Withdrawals for this month -- confirmed by the user to live in column
+      // BD. This is the external-capital-flow figure the Banks sheet's own YTD Perf Net
+      // formula subtracts out (Excel formula seen directly: =(H-F-O)/F, i.e. end balance
+      // minus beginning-of-year balance minus YTD transfers, over beginning-of-year Net
+      // Financial Assets) -- summed Jan-through-month, it lets buildSnapshotForDate()
+      // replicate that exact calculation instead of approximating by chaining % returns.
+      const transfersWithdrawals = safe(getCell(ws, r, 56), 0); // BD
+      out.push({ year: date.getFullYear(), month: date.getMonth(), date, totalBalance, banks, allocation, transfersWithdrawals });
     }
     return out;
   }
@@ -1997,6 +2022,26 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       ytdNet = yearMonths.reduce((acc, e) => acc * (1 + (e.net || 0)), 1) - 1;
     }
 
+    // Exact replication of the Banks sheet's own YTD Perf Net formula (confirmed directly
+    // from its cell formula: end balance minus beginning-of-year balance minus YTD net
+    // Transfers/Withdrawals, over beginning-of-year Net Financial Assets) -- takes priority
+    // over the chained-% approximation above whenever the prior December's balance and Net
+    // Financial Assets are both available. Falls back to the approximation for the very
+    // first year in the file (no prior December to anchor to).
+    let ytdNetExact = null;
+    const priorDecBalance = findByYearMonth(result.consolidatedMonthlySeries, year - 1, 11, e => e);
+    const priorDecNb = findByYearMonth(result.netBalancesMonthly, year - 1, 11, e => ({ year: e.date.getFullYear(), month: e.date.getMonth() }));
+    if (priorDecBalance && priorDecNb) {
+      const beginBalance = priorDecBalance.totalBalance;
+      const beginNFA = priorDecNb.balanceInBanks + priorDecNb.loansAndLoC + (priorDecNb.accountsReceivable || 0);
+      const ytdTransfers = (result.consolidatedMonthlySeries || [])
+        .filter(e => e.year === year && e.month <= month)
+        .reduce((s, e) => s + (e.transfersWithdrawals || 0), 0);
+      if (beginNFA) {
+        ytdNetExact = (banksTotal - beginBalance - ytdTransfers) / beginNFA;
+      }
+    }
+
     const bankCurrency = {};
     (result.banks ? result.banks.rows : []).forEach(r => { bankCurrency[r.name] = r.currency; });
 
@@ -2040,7 +2085,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           monthReturnGross: perfMonth ? perfMonth.gross : null,
           monthReturnNet: perfMonth ? perfMonth.net : null,
           ytdReturnGross: ytdGross,
-          ytdReturnNet: ytdNet,
+          ytdReturnNet: ytdNetExact !== null ? ytdNetExact : ytdNet,
+          ytdReturnNetExact: ytdNetExact !== null,
           // Loans & LoC and Accounts Receivable now have their own dedicated monthly columns
           // on the Net Balances sheet (parseNetBalancesMonthly), so use those directly when
           // present. Falls back to the old approximation (this sheet's aggregate debt
@@ -2108,7 +2154,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   const ALL_TABS = [
     { id: 'resumen', label: 'Summary' },
-    { id: 'entidades', label: 'By Entity' },
+    { id: 'entidades', label: 'Banks' },
     { id: 'historico', label: 'Historical' },
     { id: 'deuda', label: 'Debt' },
     { id: 'gastos', label: 'Expenses' },
@@ -2673,13 +2719,22 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     // other missing figure.
     const arSub = (!activeView.isLatest && (b && b.total.accountsReceivable === null))
       ? 'A/R (no historical data for this date)' : 'A/R';
+    // YTD Net for historical dates now replicates the Banks sheet's own formula exactly
+    // (end balance - beginning-of-year balance - YTD transfers, over beginning-of-year Net
+    // Financial Assets) whenever the prior December's data is available -- flagged via
+    // ytdReturnNetExact. Falls back to chaining the Performance sheet's monthly % returns
+    // (an approximation that diverges from Banks whenever there's a meaningful contribution
+    // or withdrawal mid-year) only for the very first year in the file, with no prior
+    // December to anchor to.
+    const ytdIsExact = activeView.isLatest || (b && b.total.ytdReturnNetExact);
+    const ytdSubNote = ytdIsExact ? '' : ' (estimated by chaining monthly returns -- may differ from Banks’ own period total)';
     const cards = [
       { label:'Balance in Banks', value: fmtUSD(b && b.total.balance), sub: 'As of ' + viewDateLabel },
       { label:'Loans & LoC', value: fmtUSD(b && b.total.loansAndLoC), sub: 'Loans and lines of credit' + returnSubNote },
       { label:'Accounts Receivable', value: fmtUSD(b && b.total.accountsReceivable), sub: arSub },
       { label:'Net Financial Assets', value: fmtUSD(b && b.total.netFinancialAssets), sub: 'Balance in Banks − Loans & LoC + A/R' + returnSubNote },
       { label:'Month Return (Net)', value: fmtPct(b && b.total.monthReturnNet), sub: 'Gross: ' + fmtPct(b && b.total.monthReturnGross) + returnSubNote, badge:true, badgeVal: b && b.total.monthReturnNet },
-      { label:'YTD Return (Net)', value: fmtPct(b && b.total.ytdReturnNet), sub: 'Gross: ' + fmtPct(b && b.total.ytdReturnGross) + returnSubNote, badge:true, badgeVal: b && b.total.ytdReturnNet }
+      { label:'YTD Return (Net)', value: fmtPct(b && b.total.ytdReturnNet), sub: 'Gross: ' + fmtPct(b && b.total.ytdReturnGross) + ytdSubNote, badge:true, badgeVal: b && b.total.ytdReturnNet }
     ];
     kpiGrid.innerHTML = cards.map(c => `
       <div class="card">
@@ -3506,6 +3561,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderBanksDebugDump();
     renderLoanDebugDump();
     renderNetBalancesDebugDump();
+    renderPerfDebugDump();
   }
 
   // TEMPORARY DIAGNOSTIC: renders the raw cell-by-cell dump collected in parseBanks() into
@@ -3545,6 +3601,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       ' loansAndLoC=' + sample.loansAndLoC + ' accountsReceivable=' + sample.accountsReceivable + '\n\n';
     out += series.debugDump.join('\n');
     el.textContent = out;
+  }
+
+  function renderPerfDebugDump(){
+    const el = document.getElementById('debug-perf-dump');
+    if (!el) return;
+    const series = state && state.performanceMonthly;
+    if (!series || !series.debugDump) { el.textContent = 'No debug data available (only populated right after a fresh Excel upload, not after a page reload).'; return; }
+    el.textContent = series.debugDump.join('\n');
   }
 
   function switchView(view){
