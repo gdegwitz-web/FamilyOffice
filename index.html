@@ -662,6 +662,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     </div>
     <div class="header-right">
       <div class="user-pill" id="user-pill" style="display:none;"></div>
+      <div class="date-picker-wrap" id="portfolio-picker-wrap" style="display:none;">
+        <span class="date-picker-label"><svg class="icon" viewBox="0 0 24 24"><path d="M3 7l9-4 9 4-9 4-9-4z"/><path d="M3 7v10l9 4 9-4V7"/><path d="M12 11v10"/></svg>Portfolio</span>
+        <select id="portfolio-select"></select>
+      </div>
       <div class="date-picker-wrap" id="date-picker-wrap" style="display:none;">
         <span class="date-picker-label"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>Viewing portfolio as of</span>
         <select id="date-select"></select>
@@ -898,7 +902,24 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
     <!-- ========== ADMINISTRATION (admin only) ========== -->
     <section id="view-admin" class="view">
-      <div class="card section-title"><h2>Users with Access</h2><span>Changes here save straight to the database and are available to the whole family within seconds</span></div>
+      <div class="card section-title"><h2>Portfolios</h2><span>Create a portfolio, select it in the header switcher, then use "Upload Excel" to populate it. Grant users access to a portfolio in their profile below.</span></div>
+      <div class="admin-grid">
+        <div class="panel">
+          <div class="table-scroll"><table id="portfolios-table"></table></div>
+        </div>
+        <div class="panel">
+          <h3>Add Portfolio</h3>
+          <form id="new-portfolio-form">
+            <div class="form-field">
+              <label for="new-portfolio-name">Portfolio Name</label>
+              <input type="text" id="new-portfolio-name" required placeholder="e.g. Smith Family">
+            </div>
+            <button type="submit" class="btn primary" id="new-portfolio-submit">Add Portfolio</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="card section-title" style="margin-top:14px;"><h2>Users with Access</h2><span>Changes here save straight to the database and are available to the whole family within seconds</span></div>
       <div class="admin-grid">
         <div class="panel">
           <div class="table-scroll"><table id="users-table"></table></div>
@@ -942,6 +963,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 <label class="checkbox-chip"><input type="checkbox" value="fees" checked> Fees</label>
                 <label class="checkbox-chip"><input type="checkbox" value="is" checked> Income Statement</label>
               </div>
+            </div>
+            <div class="form-field">
+              <label>Portfolio Access</label>
+              <div class="checkbox-row" id="uf-portfolios"></div>
             </div>
             <div style="display:flex;gap:8px;">
               <button type="submit" class="btn primary" id="uf-submit-btn">Add User</button>
@@ -2193,6 +2218,19 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   let USERS = []; // kept in sync live from Firestore, see initUsersSync()
   let usersLoaded = false;
 
+  // ---------------- portfolios (multi-portfolio support) ----------------
+  // Each portfolio is a doc in the "portfolios" collection: { name, data: <parsed state>,
+  // updatedAt, updatedBy }. Users are granted access to specific portfolios via their own
+  // `portfolios` array field (same pattern as `tabs`). The admin uploads an Excel file to
+  // whichever portfolio is currently selected in the header switcher.
+  let PORTFOLIOS = []; // [{id, name, updatedAt}], kept in sync live, see initPortfoliosListSync()
+  let portfoliosListLoaded = false;
+  let currentPortfolioId = null;
+  let unsubscribePortfolioDoc = null;
+  let portfolioAccessInitialized = false; // true once the initial portfolio pick has run for this login
+  const PORTFOLIO_KEY = 'mv_family_office_portfolio_v1'; // last-selected portfolio id, per browser
+  const LEGACY_PORTFOLIO_ID = 'legacy-main'; // fixed id so the one-time migration below is idempotent
+
   const ALL_TABS = [
     { id: 'resumen', label: 'Summary' },
     { id: 'entidades', label: 'Banks' },
@@ -2214,10 +2252,199 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const firstLoad = !usersLoaded;
       usersLoaded = true;
       if (firstLoad && onFirstLoad) onFirstLoad();
+      if (currentUser) {
+        // keep the signed-in user's own record (tabs/portfolios/role) live, so access changes
+        // made by an admin take effect without requiring the affected user to log out/in again
+        const fresh = USERS.find(u => u.id === currentUser.id);
+        if (fresh) { currentUser = fresh; applyUserPermissions(); }
+        maybeInitPortfolioAccess();
+      }
       if (currentUser && currentUser.role === 'admin') renderAdminPanel();
     }, function(err){
       console.error('Could not read the user list from Firestore:', err);
     });
+  }
+
+  // ---------------- portfolios: list sync, access, switching ----------------
+  function initPortfoliosListSync(){
+    db.collection('portfolios').onSnapshot(function(snap){
+      PORTFOLIOS = snap.docs.map(function(d){
+        const data = d.data() || {};
+        return { id: d.id, name: data.name || d.id, updatedAt: data.updatedAt || null };
+      }).sort(function(a, b){ return a.name.localeCompare(b.name); });
+      portfoliosListLoaded = true;
+      if (currentUser) maybeInitPortfolioAccess();
+    }, function(err){
+      console.error('Could not read the portfolio list from Firestore:', err);
+    });
+  }
+
+  function accessiblePortfolios(){
+    if (!currentUser) return [];
+    const allowedIds = new Set(currentUser.portfolios || []);
+    return PORTFOLIOS.filter(function(p){ return allowedIds.has(p.id); });
+  }
+
+  function pickInitialPortfolioId(){
+    const accessible = accessiblePortfolios();
+    if (!accessible.length) return null;
+    let saved = null;
+    try { saved = localStorage.getItem(PORTFOLIO_KEY); } catch(e){}
+    if (saved && accessible.some(function(p){ return p.id === saved; })) return saved;
+    return accessible[0].id;
+  }
+
+  function renderPortfolioSwitcher(){
+    const wrap = document.getElementById('portfolio-picker-wrap');
+    const select = document.getElementById('portfolio-select');
+    if (!wrap || !select) return;
+    const accessible = accessiblePortfolios();
+    if (accessible.length <= 1) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+    select.innerHTML = accessible.map(function(p){
+      return '<option value="' + esc(p.id) + '">' + esc(p.name) + '</option>';
+    }).join('');
+    if (currentPortfolioId && accessible.some(function(p){ return p.id === currentPortfolioId; })) {
+      select.value = currentPortfolioId;
+    }
+  }
+
+  function subscribeToPortfolioDoc(portfolioId){
+    if (unsubscribePortfolioDoc) { unsubscribePortfolioDoc(); unsubscribePortfolioDoc = null; }
+    unsubscribePortfolioDoc = db.collection('portfolios').doc(portfolioId).onSnapshot(function(doc){
+      const docData = doc.exists ? doc.data() : null;
+      if (!docData || !docData.data || !Object.keys(docData.data).length) {
+        state = null; renderAll(); return;
+      }
+      state = reviveDates(docData.data);
+      selectedYear = null; selectedMonth = null; // a fresh publish resets the date picker to the latest month
+      try { saveSnapshot(); } catch(e){}
+      renderAll();
+    }, function(err){
+      console.error('Could not read the portfolio from Firestore:', err);
+    });
+  }
+
+  function switchPortfolio(portfolioId){
+    if (!portfolioId || portfolioId === currentPortfolioId) return;
+    const accessible = accessiblePortfolios();
+    if (!accessible.some(function(p){ return p.id === portfolioId; })) return;
+    currentPortfolioId = portfolioId;
+    try { localStorage.setItem(PORTFOLIO_KEY, portfolioId); } catch(e){}
+    selectedYear = null; selectedMonth = null;
+    state = null;
+    renderAll();
+    subscribeToPortfolioDoc(portfolioId);
+    updateEmptyStateForRole(currentUser && currentUser.role === 'admin');
+  }
+
+  // Runs once per login (after both the user list and portfolio list have loaded) to pick the
+  // initial portfolio; on every later update it just keeps the switcher/checkboxes in sync and
+  // falls back to another accessible portfolio if the current one was revoked.
+  function maybeInitPortfolioAccess(){
+    if (!currentUser || !portfoliosListLoaded) return;
+    renderPortfolioSwitcher();
+    renderPortfolioCheckboxes();
+    if (currentUser.role === 'admin') renderAdminPortfolioList();
+    const accessible = accessiblePortfolios();
+    if (!portfolioAccessInitialized) {
+      portfolioAccessInitialized = true;
+      currentPortfolioId = pickInitialPortfolioId();
+      if (currentPortfolioId) subscribeToPortfolioDoc(currentPortfolioId);
+      else { state = null; renderAll(); }
+      updateEmptyStateForRole(currentUser.role === 'admin');
+    } else if (currentPortfolioId && !accessible.some(function(p){ return p.id === currentPortfolioId; })) {
+      currentPortfolioId = accessible.length ? accessible[0].id : null;
+      if (currentPortfolioId) { subscribeToPortfolioDoc(currentPortfolioId); }
+      else {
+        if (unsubscribePortfolioDoc) { unsubscribePortfolioDoc(); unsubscribePortfolioDoc = null; }
+        state = null; renderAll();
+      }
+      updateEmptyStateForRole(currentUser.role === 'admin');
+    }
+  }
+
+  function renderPortfolioCheckboxes(){
+    const container = document.getElementById('uf-portfolios');
+    if (!container) return;
+    const prevChecked = new Set(Array.from(container.querySelectorAll('input:checked')).map(function(cb){ return cb.value; }));
+    container.innerHTML = PORTFOLIOS.length
+      ? PORTFOLIOS.map(function(p){ return '<label class="checkbox-chip"><input type="checkbox" value="' + esc(p.id) + '"> ' + esc(p.name) + '</label>'; }).join('')
+      : '<span class="hint">No portfolios yet — add one above first.</span>';
+    container.querySelectorAll('input[type=checkbox]').forEach(function(cb){ cb.checked = prevChecked.has(cb.value); });
+  }
+
+  function renderAdminPortfolioList(){
+    const el = document.getElementById('portfolios-table');
+    if (!el) return;
+    el.innerHTML = '<thead><tr><th>Name</th><th>Last Updated</th><th></th></tr></thead><tbody>' +
+      PORTFOLIOS.map(function(p){
+        const updated = p.updatedAt ? esc(new Date(p.updatedAt).toLocaleString()) : 'Never uploaded';
+        return '<tr><td><input type="text" class="portfolio-name-input" data-id="' + esc(p.id) + '" value="' + esc(p.name) + '"></td>' +
+          '<td>' + updated + '</td>' +
+          '<td class="row-actions"><button type="button" class="delete-btn" data-delete-portfolio="' + esc(p.id) + '">Delete</button></td></tr>';
+      }).join('') + '</tbody>';
+    el.querySelectorAll('.portfolio-name-input').forEach(function(inp){
+      inp.addEventListener('change', async function(){
+        const id = inp.getAttribute('data-id');
+        const name = inp.value.trim();
+        if (!name) return;
+        try { await db.collection('portfolios').doc(id).update({ name: name }); }
+        catch(err){ alert('Could not rename the portfolio: ' + err.message); }
+      });
+    });
+    el.querySelectorAll('[data-delete-portfolio]').forEach(function(btn){
+      btn.addEventListener('click', async function(){
+        const id = btn.getAttribute('data-delete-portfolio');
+        const p = PORTFOLIOS.find(function(x){ return x.id === id; });
+        if (!confirm('Delete portfolio "' + (p ? p.name : id) + '"? This cannot be undone.')) return;
+        try {
+          await db.collection('portfolios').doc(id).delete();
+          const snap = await db.collection('users').get();
+          const batch = db.batch();
+          snap.docs.forEach(function(d){ batch.update(d.ref, { portfolios: firebase.firestore.FieldValue.arrayRemove(id) }); });
+          await batch.commit();
+        } catch(err){ alert('Could not delete the portfolio: ' + err.message); }
+      });
+    });
+  }
+
+  async function createPortfolio(name){
+    const trimmed = (name || '').trim();
+    if (!trimmed) return null;
+    const docRef = await db.collection('portfolios').add({ name: trimmed, data: null, updatedAt: null });
+    if (currentUser) {
+      // auto-grant the creating admin access so they can immediately select + upload to it
+      await db.collection('users').doc(currentUser.id).update({ portfolios: firebase.firestore.FieldValue.arrayUnion(docRef.id) });
+    }
+    return docRef.id;
+  }
+
+  // One-time, idempotent migration: the app used to keep a single portfolio at
+  // config/portfolio. The first admin to sign in after this update copies that data into
+  // portfolios/legacy-main (fixed id, so re-running this is a no-op) and grants every existing
+  // user access to it, so nobody loses what they could already see.
+  async function migrateLegacyPortfolioIfNeeded(){
+    try {
+      const legacyDoc = await db.collection('portfolios').doc(LEGACY_PORTFOLIO_ID).get();
+      if (legacyDoc.exists) return;
+      const oldDoc = await db.collection('config').doc('portfolio').get();
+      if (!oldDoc.exists) return;
+      const oldData = oldDoc.data();
+      if (!oldData || !Object.keys(oldData).length) return;
+      await db.collection('portfolios').doc(LEGACY_PORTFOLIO_ID).set({
+        name: 'MV Family',
+        data: oldData,
+        updatedAt: new Date().toISOString()
+      });
+      const snap = await db.collection('users').get();
+      const batch = db.batch();
+      snap.docs.forEach(function(d){ batch.update(d.ref, { portfolios: firebase.firestore.FieldValue.arrayUnion(LEGACY_PORTFOLIO_ID) }); });
+      await batch.commit();
+      console.log('Migrated legacy single-portfolio data into portfolios/' + LEGACY_PORTFOLIO_ID);
+    } catch(e) {
+      console.error('Legacy portfolio migration failed (non-fatal):', e);
+    }
   }
 
   async function sha256Hex(str){
@@ -2232,6 +2459,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     document.getElementById('lock-screen').style.display = 'none';
     document.getElementById('app').style.display = 'block';
     applyUserPermissions();
+    maybeInitPortfolioAccess();
+    if (currentUser && currentUser.role === 'admin') migrateLegacyPortfolioIfNeeded();
   }
   function applyUserPermissions(){
     if (!currentUser) return;
@@ -2266,6 +2495,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const p = document.querySelector('#empty-state p');
     const dz = document.getElementById('dropzone');
     if (!h2 || !p || !dz) return;
+    if (!currentPortfolioId) {
+      h2.textContent = 'No portfolio assigned';
+      p.textContent = isAdmin
+        ? 'Create a portfolio in the Administration tab (or select one in the header), then upload its Excel file.'
+        : 'Your administrator has not given you access to a portfolio yet. Please check back later.';
+      dz.style.display = 'none';
+      return;
+    }
     if (isAdmin) {
       h2.textContent = 'Upload the master Excel file to view the portfolio';
       p.textContent = 'This dashboard is populated directly from the monthly master Excel file (CEMS Master). The file is processed in your browser and the result is saved straight to the database — as soon as you upload it, the whole family sees it, no extra steps needed.';
@@ -2338,6 +2575,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     try { localStorage.removeItem(SESSION_KEY); sessionStorage.removeItem(SESSION_KEY); } catch(e){}
     if (fbAuth.currentUser) { fbAuth.signOut().catch(function(){}); }
     currentUser = null;
+    if (unsubscribePortfolioDoc) { unsubscribePortfolioDoc(); unsubscribePortfolioDoc = null; }
+    currentPortfolioId = null;
+    portfolioAccessInitialized = false;
+    state = null;
+    const portfolioWrap = document.getElementById('portfolio-picker-wrap');
+    if (portfolioWrap) portfolioWrap.style.display = 'none';
     document.getElementById('app').style.display = 'none';
     document.getElementById('lock-screen').style.display = 'flex';
     document.getElementById('user-pill').style.display = 'none';
@@ -2353,7 +2596,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const tbl = document.getElementById('users-table');
     if (!tbl) return;
     tbl.innerHTML = `
-      <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Tabs</th><th></th></tr></thead>
+      <thead><tr><th>Name</th><th>Username</th><th>Role</th><th>Tabs</th><th>Portfolios</th><th></th></tr></thead>
       <tbody>
         ${USERS.map(u => `
           <tr>
@@ -2361,6 +2604,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             <td>${esc(u.username)}</td>
             <td><span class="role-pill ${u.role}">${u.role === 'admin' ? 'Admin' : 'User'}</span></td>
             <td>${(u.tabs||[]).length ? u.tabs.map(t => `<span class="tab-tag">${esc(tabLabel(t))}</span>`).join('') : '<span class="tab-tag">None</span>'}</td>
+            <td>${(u.portfolios||[]).length ? u.portfolios.map(pid => { const p = PORTFOLIOS.find(x => x.id === pid); return `<span class="tab-tag">${esc(p ? p.name : pid)}</span>`; }).join('') : '<span class="tab-tag">None</span>'}</td>
             <td class="row-actions">
               <button type="button" class="edit-btn" data-edit="${esc(u.id)}">Edit</button>
               <button type="button" class="delete-btn" data-delete="${esc(u.id)}">Delete</button>
@@ -2384,6 +2628,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const roleUserRadio = document.querySelector('input[name="uf-role"][value="user"]');
     if (roleUserRadio) roleUserRadio.checked = true;
     document.querySelectorAll('#uf-tabs input[type=checkbox]').forEach(cb => { cb.checked = true; });
+    renderPortfolioCheckboxes();
+    // default a brand-new user to whichever portfolio the admin is currently viewing
+    document.querySelectorAll('#uf-portfolios input[type=checkbox]').forEach(cb => { cb.checked = (cb.value === currentPortfolioId); });
     const authEmailInput = document.getElementById('uf-authemail');
     if (authEmailInput) authEmailInput.value = '';
     const authEmailField = document.getElementById('uf-authemail-field');
@@ -2405,6 +2652,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (roleRadio) roleRadio.checked = true;
     const allowed = new Set(user.tabs || []);
     document.querySelectorAll('#uf-tabs input[type=checkbox]').forEach(cb => { cb.checked = allowed.has(cb.value); });
+    renderPortfolioCheckboxes();
+    const allowedPortfolios = new Set(user.portfolios || []);
+    document.querySelectorAll('#uf-portfolios input[type=checkbox]').forEach(cb => { cb.checked = allowedPortfolios.has(cb.value); });
     const authEmailInput = document.getElementById('uf-authemail');
     if (authEmailInput) authEmailInput.value = user.authEmail || '';
     const authEmailField = document.getElementById('uf-authemail-field');
@@ -2430,6 +2680,25 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function initAdminForm(){
     const cancelBtn = document.getElementById('uf-cancel-btn');
     if (cancelBtn) cancelBtn.addEventListener('click', resetUserForm);
+
+    const newPortfolioForm = document.getElementById('new-portfolio-form');
+    if (newPortfolioForm) newPortfolioForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const input = document.getElementById('new-portfolio-name');
+      const name = input.value.trim();
+      if (!name) return;
+      const btn = document.getElementById('new-portfolio-submit');
+      btn.disabled = true;
+      try {
+        await createPortfolio(name);
+        input.value = '';
+      } catch(err) {
+        alert('Could not create the portfolio: ' + err.message);
+        console.error(err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
     const roleRadios = document.querySelectorAll('input[name="uf-role"]');
     const authEmailField = document.getElementById('uf-authemail-field');
     function toggleAuthEmailField(){
@@ -2452,6 +2721,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const roleChecked = document.querySelector('input[name="uf-role"]:checked');
       const role = roleChecked ? roleChecked.value : 'user';
       const tabs = Array.from(document.querySelectorAll('#uf-tabs input[type=checkbox]:checked')).map(cb => cb.value);
+      const portfolios = Array.from(document.querySelectorAll('#uf-portfolios input[type=checkbox]:checked')).map(cb => cb.value);
       const authEmailInput = document.getElementById('uf-authemail');
       const authEmail = authEmailInput ? authEmailInput.value.trim() : '';
 
@@ -2471,7 +2741,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             if (remainingAdmins === 0) { errorEl.textContent = 'At least one administrator must remain.'; errorEl.style.display = 'block'; return; }
           }
           if (password && password.length < 4) { errorEl.textContent = 'The password must be at least 4 characters.'; errorEl.style.display = 'block'; return; }
-          const update = { name, username, role, tabs, authEmail: role === 'admin' ? authEmail : firebase.firestore.FieldValue.delete() };
+          const update = { name, username, role, tabs, portfolios, authEmail: role === 'admin' ? authEmail : firebase.firestore.FieldValue.delete() };
           if (password) update.passwordHash = await sha256Hex(password);
           await db.collection('users').doc(editingUserId).update(update);
           if (currentUser && editingUserId === currentUser.id) {
@@ -2481,7 +2751,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         } else {
           if (!password || password.length < 4) { errorEl.textContent = 'The password must be at least 4 characters.'; errorEl.style.display = 'block'; return; }
           const passwordHash = await sha256Hex(password);
-          const doc = { name, username, passwordHash, role, tabs };
+          const doc = { name, username, passwordHash, role, tabs, portfolios };
           if (role === 'admin') doc.authEmail = authEmail;
           await db.collection('users').add(doc);
         }
@@ -3583,7 +3853,19 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // ORCHESTRATION
   // ===================================================================
   function renderAll(){
-    if (!state) return;
+    if (!state) {
+      // No data for the currently selected portfolio (none selected, access just revoked, or
+      // it hasn't had an Excel uploaded yet) -- fall back to the empty state instead of leaving
+      // whatever was previously rendered (e.g. another portfolio's data) on screen.
+      const emptyState = document.getElementById('empty-state');
+      const mainContent = document.getElementById('main-content');
+      const tabsEl = document.getElementById('tabs');
+      if (emptyState) emptyState.style.display = '';
+      if (mainContent) mainContent.style.display = 'none';
+      if (tabsEl) tabsEl.style.display = 'none';
+      if (currentUser) updateEmptyStateForRole(currentUser.role === 'admin');
+      return;
+    }
     document.getElementById('empty-state').style.display = 'none';
     document.getElementById('main-content').style.display = 'block';
     document.getElementById('tabs').style.display = 'flex';
@@ -3698,16 +3980,28 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   }
 
   function handleFile(file){
+    if (!currentPortfolioId) {
+      alert('Select or create a portfolio first (Administration tab), then try uploading again.');
+      return;
+    }
+    const targetPortfolioId = currentPortfolioId;
     const reader = new FileReader();
     reader.onload = function(e){
       try {
         const data = new Uint8Array(e.target.result);
         const wb = XLSX.read(data, { type:'array', cellDates:true });
-        state = MVParse.parseAll(wb);
+        const parsed = MVParse.parseAll(wb);
+        state = parsed;
         selectedYear = null; selectedMonth = null; // reset to the new file's latest month
         saveSnapshot(file.name);
         renderAll();
-        db.collection('config').doc('portfolio').set(state).then(function(){
+        const existing = PORTFOLIOS.find(function(p){ return p.id === targetPortfolioId; });
+        db.collection('portfolios').doc(targetPortfolioId).set({
+          name: existing ? existing.name : 'Portfolio',
+          data: parsed,
+          updatedAt: new Date().toISOString(),
+          updatedBy: currentUser ? currentUser.name : null
+        }).then(function(){
           console.log('Portfolio published to Firestore.');
         }).catch(function(err){
           alert('The portfolio loaded in your browser, but could not be saved to the database (so the rest of the family will not see it yet): ' + err.message);
@@ -3719,20 +4013,6 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
     };
     reader.readAsArrayBuffer(file);
-  }
-
-  function initPortfolioSync(){
-    db.collection('config').doc('portfolio').onSnapshot(function(doc){
-      if (!doc.exists) return;
-      const data = doc.data();
-      if (!data || !Object.keys(data).length) return;
-      state = reviveDates(data);
-      selectedYear = null; selectedMonth = null; // a fresh publish resets the date picker to the latest month
-      try { saveSnapshot(); } catch(e){}
-      renderAll();
-    }, function(err){
-      console.error('Could not read the portfolio from Firestore:', err);
-    });
   }
 
   function init(){
@@ -3759,6 +4039,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       rerenderForDate();
     });
 
+    const portfolioSelect = document.getElementById('portfolio-select');
+    if (portfolioSelect) portfolioSelect.addEventListener('change', (e) => switchPortfolio(e.target.value));
+
     // Render from local cache immediately (fast first paint / offline), then let the live
     // Firestore listeners below take over with the real, up to date data.
     const saved = loadSnapshot();
@@ -3767,7 +4050,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       renderAll();
     }
 
-    initPortfolioSync();
+    initPortfoliosListSync();
     initUsersSync(function(){ initLock(); });
   }
 
