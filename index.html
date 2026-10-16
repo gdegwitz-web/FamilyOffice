@@ -3151,7 +3151,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       box.style.maxWidth = '520px';
       box.style.maxHeight = '85vh';
       box.style.overflowY = 'auto';
-      box.insertAdjacentHTML('beforeend', '<div style="margin-top:16px;font-weight:700;font-size:13px;">Detail (from the "Other" sheet' + (activeView.isLatest ? '' : ' -- latest values, no monthly history') + ')</div>' + detail + totalLine);
+      // Clean view: title, date, line items and total only (no summary value or source notes).
+      box.innerHTML =
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><h3 style="margin:0;font-size:17px;">' + esc(title) + '</h3><button type="button" id="breakdown-close" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">&times;</button></div>' +
+        '<div style="color:var(--muted);font-size:12px;margin-bottom:12px;">As of ' + esc(month) + '</div>' +
+        detail + totalLine;
     }
     if ((kind === 'realestate' || kind === 'art' || kind === 'ar') && !(sec && sec.items && sec.items.length)) {
       const hasOthers = state && state.others;
