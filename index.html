@@ -672,6 +672,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       </div>
       <label class="btn primary" for="file-input" id="upload-label"><svg class="icon" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3"/></svg>Upload Excel</label>
       <input type="file" id="file-input" accept=".xlsx,.xlsm,.xls">
+      <button type="button" class="btn" id="signout-btn" style="display:none;"><svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>Sign Out</button>
     </div>
   </header>
 
@@ -709,28 +710,28 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         <div class="nb-body">
           <div class="nb-col nb-assets">
             <div class="nb-col-label">Assets</div>
-            <div class="nb-row">
+            <div class="nb-row nb-click" data-nav="tab:entidades">
               <div class="nb-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 10.5 12 4l9 6.5"/><path d="M5 10.5V20h14v-9.5"/><path d="M9 20v-6h6v6"/></svg></div>
               <div class="nb-row-info">
                 <div class="nb-row-label">Banks</div>
                 <div class="nb-row-value" id="nb-banks">—</div>
               </div>
             </div>
-            <div class="nb-row">
+            <div class="nb-row nb-click" data-nav="detail:realestate">
               <div class="nb-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 21V9l6-4 6 4v12"/><path d="M16 21v-8l4 2v6"/><path d="M9 21v-4h2v4"/></svg></div>
               <div class="nb-row-info">
                 <div class="nb-row-label">Real Estate</div>
                 <div class="nb-row-value" id="nb-realestate">—</div>
               </div>
             </div>
-            <div class="nb-row">
+            <div class="nb-row nb-click" data-nav="detail:art">
               <div class="nb-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><circle cx="10" cy="10.5" r="1.6"/><path d="M6.5 17 11 12.5l2.5 2.5L18 10.5"/></svg></div>
               <div class="nb-row-info">
                 <div class="nb-row-label">Art &amp; Other</div>
                 <div class="nb-row-value" id="nb-art">—</div>
               </div>
             </div>
-            <div class="nb-total-line">
+            <div class="nb-total-line nb-click" data-nav="detail:assets">
               <span>Total Assets</span>
               <span id="nb-total-assets">—</span>
             </div>
@@ -738,7 +739,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
           <div class="nb-bracket nb-bracket-assets" aria-hidden="true"></div>
 
-          <div class="nb-col nb-center">
+          <div class="nb-col nb-center nb-click" data-nav="detail:networth">
             <div class="nb-networth-label">Total Net Worth</div>
             <div class="nb-networth-value" id="nb-networth-value">—</div>
           </div>
@@ -747,14 +748,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
           <div class="nb-col nb-liab">
             <div class="nb-col-label nb-col-label-neg">Liabilities</div>
-            <div class="nb-row">
+            <div class="nb-row nb-click" data-nav="tab:deuda">
               <div class="nb-icon nb-icon-neg" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 3 4 6.5 12 10l8-3.5Z"/><path d="M4 6.5v11L12 21l8-3.5v-11"/><path d="M12 10v11"/></svg></div>
               <div class="nb-row-info">
                 <div class="nb-row-label">Loans</div>
                 <div class="nb-row-value" id="nb-loans">—</div>
               </div>
             </div>
-            <div class="nb-total-line nb-total-line-neg">
+            <div class="nb-total-line nb-total-line-neg nb-click" data-nav="tab:deuda">
               <span>Total Liabilities</span>
               <span id="nb-total-liab">—</span>
             </div>
@@ -2466,6 +2467,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (!currentUser) return;
     const pill = document.getElementById('user-pill');
     pill.style.display = 'flex';
+    const signoutBtn = document.getElementById('signout-btn');
+    if (signoutBtn) signoutBtn.style.display = '';
     pill.innerHTML = `<b>${esc(currentUser.name)}</b><span class="role-badge">${currentUser.role === 'admin' ? 'Admin' : 'User'}</span>`;
 
     const allowed = new Set(currentUser.tabs || []);
@@ -2584,6 +2587,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     document.getElementById('app').style.display = 'none';
     document.getElementById('lock-screen').style.display = 'flex';
     document.getElementById('user-pill').style.display = 'none';
+    const signoutBtn = document.getElementById('signout-btn');
+    if (signoutBtn) signoutBtn.style.display = 'none';
     const uInput = document.getElementById('lock-username');
     const pInput = document.getElementById('lock-password');
     if (uInput) uInput.value = '';
@@ -3011,6 +3016,66 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (el) el.textContent = val;
   }
 
+  // ---- Summary drill-down: click a line to jump to its tab, or see a breakdown if it has none ----
+  function showBreakdownModal(kind){
+    if (!activeView) return;
+    const d = activeView.dashboard || {};
+    const month = monthYearLabel(activeView.year, activeView.month);
+    let title = '', lines = [], total = null, note = '';
+    if (kind === 'realestate') {
+      title = 'Real Estate';
+      lines = [['Real Estate value', d.realEstate]];
+      note = 'Taken from the Real Estate column of the "Net Balances" sheet for ' + month + (activeView.isLatest ? ' (Dashboard sheet for the latest month)' : '') + '. The Excel file holds a single total, not a property-by-property list.';
+    } else if (kind === 'art') {
+      title = 'Art & Other';
+      lines = [['Art & Other value', d.artOthers]];
+      note = 'Taken from the Dashboard sheet. It has no monthly history, so earlier dates show the latest known value.';
+    } else if (kind === 'assets') {
+      title = 'Total Assets';
+      lines = [['Banks', d.banksTotal], ['Real Estate', d.realEstate], ['Art & Other', d.artOthers]];
+      total = ['Total Assets', d.totalAssets];
+      note = 'Banks + Real Estate + Art & Other.';
+    } else if (kind === 'networth') {
+      title = 'Total Net Worth';
+      lines = [['Total Assets', d.totalAssets], ['Total Liabilities (Loans)', -Math.abs(d.totalLiabilities || 0)]];
+      total = ['Total Net Worth', d.netWorth];
+      note = 'Total Assets − Total Liabilities.';
+    } else return;
+    const old = document.getElementById('breakdown-modal');
+    if (old) old.remove();
+    const wrap = document.createElement('div');
+    wrap.id = 'breakdown-modal';
+    wrap.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;';
+    const rowHtml = (l, v, bold) => '<div style="display:flex;justify-content:space-between;gap:24px;padding:9px 0;border-bottom:1px solid var(--border);' + (bold ? 'font-weight:700;border-bottom:none;border-top:1px solid var(--border);margin-top:4px;' : '') + '"><span>' + esc(l) + '</span><span>' + esc(fmtUSD(v)) + '</span></div>';
+    wrap.innerHTML = '<div style="background:var(--card);border:1px solid var(--border);border-radius:14px;padding:22px 24px;max-width:420px;width:100%;color:var(--text);">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;"><h3 style="margin:0;font-size:17px;">' + esc(title) + '</h3><button type="button" id="breakdown-close" style="background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;line-height:1;">&times;</button></div>' +
+      '<div style="color:var(--muted);font-size:12px;margin-bottom:12px;">As of ' + esc(month) + '</div>' +
+      lines.map(l => rowHtml(l[0], l[1], false)).join('') +
+      (total ? rowHtml(total[0], total[1], true) : '') +
+      '<div style="color:var(--muted);font-size:12px;line-height:1.5;margin-top:14px;">' + esc(note) + '</div></div>';
+    document.body.appendChild(wrap);
+    wrap.addEventListener('click', e => { if (e.target === wrap || e.target.id === 'breakdown-close') wrap.remove(); });
+  }
+  function initSummaryDrilldown(){
+    const box = document.getElementById('networth-box');
+    if (!box) return;
+    const style = document.createElement('style');
+    style.textContent = '.nb-click{cursor:pointer;transition:opacity .15s;} .nb-click:hover{opacity:.78;}';
+    document.head.appendChild(style);
+    box.addEventListener('click', function(e){
+      const el = e.target.closest('[data-nav]');
+      if (!el) return;
+      const parts = el.getAttribute('data-nav').split(':');
+      if (parts[0] === 'tab') {
+        const allowed = currentUser && (currentUser.role === 'admin' || (currentUser.tabs || []).indexOf(parts[1]) !== -1);
+        if (allowed) { switchView(parts[1]); window.scrollTo(0, 0); }
+        else showBreakdownModal(parts[1] === 'deuda' ? 'networth' : 'assets');
+      } else {
+        showBreakdownModal(parts[1]);
+      }
+    });
+  }
+
   // ===================================================================
   // RENDER: BY ENTITY (includes the consolidated panels that used to live in Summary)
   // ===================================================================
@@ -3210,6 +3275,28 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // RENDER: HISTORICAL
   // ===================================================================
   let currentRange = 60;
+  // Draws "x.xx%" above positive bars and below negative ones (values are already in %).
+  const returnBarLabelsPlugin = {
+    id: 'returnBarLabels',
+    afterDatasetsDraw(chart){
+      const meta = chart.getDatasetMeta(0);
+      const data = chart.data.datasets[0].data;
+      const fontSize = data.length > 12 ? 10 : 11.5;
+      const { ctx } = chart;
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.font = "600 " + fontSize + "px -apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+      ctx.fillStyle = '#eaf6ff';
+      meta.data.forEach((bar, i) => {
+        const v = data[i];
+        if (v === undefined || v === null || isNaN(v)) return;
+        const neg = v < 0;
+        ctx.textBaseline = neg ? 'top' : 'bottom';
+        ctx.fillText(v.toFixed(1) + '%', bar.x, neg ? bar.y + 4 : bar.y - 4);
+      });
+      ctx.restore();
+    }
+  };
   function renderHistorico(){
     renderNetWorthChart();
     renderAnnualReturnChart();
@@ -3253,12 +3340,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       type:'bar',
       data:{ labels: closed.map(r=>String(r.year)), datasets:[{ data: closed.map(r=>r.perf*100), backgroundColor: closed.map(r=>r.perf>=0?'#3ddb9b':'#ff7a7a'), borderRadius:4 }] },
       options:{
+        layout:{ padding:{ top:22, bottom:14 } },
         plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ctx.raw.toFixed(2)+'%' } } },
         scales:{
           y:{ ticks:{ color:CHART_DEFAULTS_TEXT, callback:v=>v+'%' }, grid:{ color:CHART_GRID } },
           x:{ ticks:{ color:CHART_DEFAULTS_TEXT, maxRotation:0, autoSkip:true, maxTicksLimit:15 }, grid:{ display:false } }
         }
-      }
+      },
+      plugins:[returnBarLabelsPlugin]
     });
   }
   function renderMonthlyReturnChart(){
@@ -3267,12 +3356,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       type:'bar',
       data:{ labels: perf.map(r => monthShort(r.month)+" '"+String(r.year).slice(2)), datasets:[{ data: perf.map(r=>(r.net||0)*100), backgroundColor: perf.map(r=>(r.net||0)>=0?'#3ddb9b':'#ff7a7a'), borderRadius:4 }] },
       options:{
+        layout:{ padding:{ top:22, bottom:14 } },
         plugins:{ legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ctx.raw.toFixed(2)+'%' } } },
         scales:{
           y:{ ticks:{ color:CHART_DEFAULTS_TEXT, callback:v=>v+'%' }, grid:{ color:CHART_GRID } },
           x:{ ticks:{ color:CHART_DEFAULTS_TEXT }, grid:{ display:false } }
         }
-      }
+      },
+      plugins:[returnBarLabelsPlugin]
     });
   }
 
@@ -4015,10 +4106,41 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     reader.readAsArrayBuffer(file);
   }
 
+  // Adds a show/hide (eye) toggle to a password input.
+  function addPasswordToggle(input){
+    if (!input || input.dataset.eyeAdded) return;
+    input.dataset.eyeAdded = '1';
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'position:relative;width:100%;';
+    input.parentNode.insertBefore(wrap, input);
+    wrap.appendChild(input);
+    input.style.paddingRight = '40px';
+    input.style.boxSizing = 'border-box';
+    const EYE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const EYE_OFF = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>';
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.setAttribute('aria-label', 'Show password');
+    btn.style.cssText = 'position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:#8b93ab;cursor:pointer;padding:4px;display:flex;align-items:center;';
+    btn.innerHTML = EYE;
+    btn.addEventListener('click', function(){
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.innerHTML = show ? EYE_OFF : EYE;
+      btn.setAttribute('aria-label', show ? 'Hide password' : 'Show password');
+    });
+    wrap.appendChild(btn);
+  }
+
   function init(){
+    initSummaryDrilldown();
+    addPasswordToggle(document.getElementById('lock-password'));
+    addPasswordToggle(document.getElementById('uf-password'));
     initAdminForm();
     const lockBtn = document.getElementById('lock-btn');
     if (lockBtn) lockBtn.addEventListener('click', lockApp);
+    const signoutBtn = document.getElementById('signout-btn');
+    if (signoutBtn) signoutBtn.addEventListener('click', lockApp);
 
     document.querySelectorAll('nav.tabs button').forEach(btn => {
       btn.addEventListener('click', () => switchView(btn.dataset.view));
