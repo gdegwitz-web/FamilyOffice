@@ -2118,7 +2118,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const realEstate = nb ? nb.realEstate : (result.dashboard ? result.dashboard.realEstate : 0);
     const totalLoan = nb ? Math.abs(nb.totalLoan) : (result.dashboard ? result.dashboard.totalLiabilities : 0);
     const artOthers = result.dashboard ? result.dashboard.artOthers : 0; // no historical series -- held at latest known value
-    const totalAssets = banksTotal + realEstate + artOthers;
+    // Accounts Receivable is now part of Total Assets (matches the updated Excel Dashboard).
+    const arForTotals = (nb && typeof nb.accountsReceivable === 'number') ? nb.accountsReceivable : 0;
+    const totalAssets = banksTotal + realEstate + artOthers + arForTotals;
     const totalLiabilities = totalLoan;
     const netWorth = totalAssets - totalLiabilities;
 
@@ -3113,12 +3115,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     } else if (kind === 'ar') {
       title = 'Accounts Receivable';
       lines = [['Accounts Receivable', activeView.banks && activeView.banks.total ? activeView.banks.total.accountsReceivable : null]];
-      note = 'Loans made to related companies, from the "Other Investments" section of the "Other" sheet. Shown for reference; it is not included in Total Assets or Total Net Worth above.';
+      note = 'Loans made to related companies, from the "Other Investments" section of the "Other" sheet. Included in Total Assets.';
     } else if (kind === 'assets') {
       title = 'Total Assets';
-      lines = [['Banks', d.banksTotal], ['Real Estate', d.realEstate], ['Art & Other', d.artOthers]];
+      lines = [['Banks', d.banksTotal], ['Real Estate', d.realEstate], ['Art & Other', d.artOthers], ['Accounts Receivable', activeView.banks && activeView.banks.total ? activeView.banks.total.accountsReceivable : null]];
       total = ['Total Assets', d.totalAssets];
-      note = 'Banks + Real Estate + Art & Other.';
+      note = 'Banks + Real Estate + Art & Other + Accounts Receivable.';
     } else if (kind === 'networth') {
       title = 'Total Net Worth';
       lines = [['Total Assets', d.totalAssets], ['Total Liabilities (Loans)', -Math.abs(d.totalLiabilities || 0)]];
