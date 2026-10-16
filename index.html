@@ -1014,6 +1014,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       </div>
 
       <div class="panel" style="margin-top:14px;">
+        <h3>Debug: Dashboard Sheet Raw Data (temporary)</h3>
+        <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — every non-empty cell the app read from the "Dashboard" sheet (rows 1–40, columns A–AF).</p>
+        <pre id="debug-dashboard-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
+      </div>
+
+      <div class="panel" style="margin-top:14px;">
         <h3>Debug: Others Sheet Raw Data (temporary)</h3>
         <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — every non-empty cell the app read from the "Others" sheet (rows 1–80, columns A–N), so the Real Estate / Art &amp; Other detail can be laid out properly.</p>
         <pre id="debug-others-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
@@ -1184,13 +1190,39 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function parseDashboard(wb) {
     const ws = wb.Sheets['Dashboard'];
     if (!ws) return null;
+    // Label-driven lookup (rows shift whenever a line is added to the Dashboard, e.g. when
+    // Accounts Receivable was inserted): finds the first string cell matching `re` in columns
+    // A-L, then returns the first number within the next 4 columns on the same row.
+    function labeled(re, fallback) {
+      for (let r = 1; r <= 45; r++) {
+        for (let c = 1; c <= 12; c++) {
+          const v = getCell(ws, r, c);
+          if (typeof v === 'string' && re.test(v.trim())) {
+            for (let k = c + 1; k <= c + 4; k++) {
+              const n = getCell(ws, r, k);
+              if (typeof n === 'number') return n;
+            }
+          }
+        }
+      }
+      return fallback;
+    }
+    const dump = [];
+    for (let r = 1; r <= 40; r++) {
+      for (let c = 1; c <= 32; c++) {
+        const v = getCell(ws, r, c);
+        if (v === undefined || v === null || v === '') continue;
+        dump.push(colToLetter(c) + r + ': ' + JSON.stringify(v instanceof Date ? v.toISOString().slice(0, 10) : v));
+      }
+    }
     return {
-      totalAssets: safe(getCell(ws, 16, 11)),   // K16
-      totalLiabilities: safe(getCell(ws, 26, 11)), // K26
-      netWorth: safe(getCell(ws, 21, 15)),      // O21
-      banksTotal: safe(getCell(ws, 11, 8)),     // H11
-      realEstate: safe(getCell(ws, 16, 8)),     // H16
-      artOthers: safe(getCell(ws, 22, 8)),      // H22
+      debugDump: dump,
+      totalAssets: labeled(/^total assets$/i, safe(getCell(ws, 16, 11))),   // K16
+      totalLiabilities: labeled(/^total liabilities$/i, safe(getCell(ws, 26, 11))), // K26
+      netWorth: labeled(/^(total )?net worth$/i, safe(getCell(ws, 21, 15))),      // O21
+      banksTotal: labeled(/^banks?$/i, safe(getCell(ws, 11, 8))),     // H11
+      realEstate: labeled(/^real estate$/i, safe(getCell(ws, 16, 8))),     // H16
+      artOthers: labeled(/^art(s)?\b.*(other)?/i, safe(getCell(ws, 22, 8))),      // H22
       allocation: {
         cash: safe(getCell(ws, 10, 21)),        // U10
         fixedIncome: safe(getCell(ws, 10, 23)), // W10
@@ -4097,6 +4129,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderNetBalancesDebugDump();
     renderPerfDebugDump();
     renderYtdExactDebugDump();
+    const dashEl = document.getElementById('debug-dashboard-dump');
+    if (dashEl) {
+      const dd = state && state.dashboard && state.dashboard.debugDump;
+      dashEl.textContent = dd ? dd.join('\n') : 'No Dashboard debug data (re-upload the Excel file after this update).';
+    }
     const othersEl = document.getElementById('debug-others-dump');
     if (othersEl) {
       const o = state && state.others;
