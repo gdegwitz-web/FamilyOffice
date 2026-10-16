@@ -339,9 +339,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   .grid{display:grid;gap:14px;}
   .grid.cols-3{grid-template-columns:repeat(3,1fr);}
   .grid.cols-4{grid-template-columns:repeat(4,1fr);}
-  .grid.cols-2{grid-template-columns:repeat(2,1fr);}
+  .grid.cols-2{grid-template-columns:repeat(2,minmax(0,1fr));}
   @media(max-width:900px){.grid.cols-3,.grid.cols-4{grid-template-columns:repeat(2,1fr);}}
-  @media(max-width:600px){.grid.cols-3,.grid.cols-4,.grid.cols-2{grid-template-columns:1fr;}}
+  @media(max-width:600px){.grid.cols-3,.grid.cols-4{grid-template-columns:1fr;} .grid.cols-2{grid-template-columns:minmax(0,1fr);}}
+  /* minmax(0,...) keeps a wide, internally-scrolling chart from stretching its grid column
+     (and the whole page) past the phone screen. */
+  .grid > .panel{min-width:0;}
 
   .card{
     position:relative;overflow:hidden;
@@ -825,7 +828,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
               <button data-range="all">All</button>
             </div>
           </div>
-          <div class="chart-wrap" id="annual-scroll" style="height:280px;overflow-x:auto;overflow-y:hidden;"><div id="annual-inner" style="position:relative;height:100%;width:100%;"><canvas id="chart-annual-return"></canvas></div></div>
+          <div class="chart-wrap" id="annual-scroll" style="height:280px;width:100%;max-width:100%;overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;touch-action:pan-x pan-y;"><div id="annual-inner" style="position:relative;height:100%;width:100%;"><canvas id="chart-annual-return"></canvas></div></div>
         </div>
         <div class="panel">
           <h3>Monthly Net Return (last 12 months)</h3>
