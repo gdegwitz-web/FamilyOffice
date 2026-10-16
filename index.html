@@ -1198,6 +1198,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         for (let c = 1; c <= 12; c++) {
           const v = getCell(ws, r, c);
           if (typeof v === 'string' && re.test(v.trim())) {
+            // Confirmed layout: the value sits directly BELOW its label (e.g. H14 "REAL ESTATE"
+            // -> H15). Fall back to the cells to the right in case a layout puts it beside.
+            for (let k = r + 1; k <= r + 2; k++) {
+              const below = getCell(ws, k, c);
+              if (typeof below === 'number') return below;
+            }
             for (let k = c + 1; k <= c + 4; k++) {
               const n = getCell(ws, r, k);
               if (typeof n === 'number') return n;
@@ -1222,7 +1228,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       netWorth: labeled(/^(total )?net worth$/i, safe(getCell(ws, 21, 15))),      // O21
       banksTotal: labeled(/^banks?$/i, safe(getCell(ws, 11, 8))),     // H11
       realEstate: labeled(/^real estate$/i, safe(getCell(ws, 16, 8))),     // H16
-      artOthers: labeled(/^art(s)?\b.*(other)?/i, safe(getCell(ws, 22, 8))),      // H22
+      artOthers: labeled(/^art(s)?\b/i, safe(getCell(ws, 22, 8))),      // H19 now
+      accountsReceivable: labeled(/^acc(ounts|\.)?\s*receivable$/i, null), // H22 now
       allocation: {
         cash: safe(getCell(ws, 10, 21)),        // U10
         fixedIncome: safe(getCell(ws, 10, 23)), // W10
