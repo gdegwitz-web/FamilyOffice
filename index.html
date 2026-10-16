@@ -1969,7 +1969,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function parseOthers(wb) {
     let ws = wb.Sheets['Others'];
     if (!ws) {
-      const name = (wb.SheetNames || []).find(n => String(n).trim().toLowerCase() === 'others');
+      const names = wb.SheetNames || [];
+      const lower = n => String(n).trim().toLowerCase();
+      const name = names.find(n => lower(n) === 'others') || names.find(n => /^(others?|otros?)\b/.test(lower(n))) || names.find(n => /other|otro/.test(lower(n)));
       ws = name ? wb.Sheets[name] : null;
     }
     if (!ws) return null;
@@ -2012,6 +2014,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     result.incomeStatement = tryStep('incomeStatement', () => parseIS(wb));
     result.incomeStatementAnnual = tryStep('incomeStatementAnnual', () => parseAnnualIS(wb));
     result.others = tryStep('others', () => parseOthers(wb));
+    result.sheetNames = (wb.SheetNames || []).slice();
     const asOf = result.meta && result.meta.asOf;
     if (result.banks && asOf) {
       for (const row of result.banks.rows) {
@@ -4036,7 +4039,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const othersEl = document.getElementById('debug-others-dump');
     if (othersEl) {
       const o = state && state.others;
-      othersEl.textContent = (o && o.debugDump) ? o.debugDump.join('\n') : 'No "Others" sheet data found in the uploaded file.';
+      const names = state && state.sheetNames;
+      const namesLine = names ? 'Sheets in file: ' + names.map(n => '"' + n + '"').join(', ') + '\n\n' : 'Sheet list not available -- re-upload the Excel file after this update.\n\n';
+      othersEl.textContent = namesLine + ((o && o.debugDump) ? o.debugDump.join('\n') : 'No "Others" sheet data found in the uploaded file.');
     }
   }
 
