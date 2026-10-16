@@ -731,6 +731,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
                 <div class="nb-row-value" id="nb-art">—</div>
               </div>
             </div>
+            <div class="nb-row nb-click" data-nav="detail:ar">
+              <div class="nb-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/></svg></div>
+              <div class="nb-row-info">
+                <div class="nb-row-label">Accounts Receivable</div>
+                <div class="nb-row-value" id="nb-ar">—</div>
+              </div>
+            </div>
             <div class="nb-total-line nb-click" data-nav="detail:assets">
               <span>Total Assets</span>
               <span id="nb-total-assets">—</span>
@@ -1989,7 +1996,40 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
       if (cells.length) rows.push({ r: r, cells: cells });
     }
-    return { rows: rows, debugDump: dump };
+    // Structured sections, confirmed from the real layout: labels in column J, amounts in L,
+    // income in M. Each section starts at its header label and ends at its "Totals" row.
+    function readSection(headerRegex) {
+      let start = -1;
+      for (let r = 1; r <= 80; r++) {
+        const v = getCell(ws, r, 10);
+        if (typeof v === 'string' && headerRegex.test(v.trim())) { start = r; break; }
+      }
+      if (start === -1) return null;
+      const items = [];
+      let total = null, totalIncome = null;
+      for (let r = start + 1; r <= 80; r++) {
+        const name = getCell(ws, r, 10);
+        if (typeof name !== 'string' || !name.trim()) continue;
+        const label = name.trim();
+        const amount = getCell(ws, r, 12), income = getCell(ws, r, 13);
+        if (/^totals?$/i.test(label)) {
+          total = (typeof amount === 'number') ? amount : null;
+          totalIncome = (typeof income === 'number') ? income : null;
+          break;
+        }
+        if (/^(description|other investments|arts|real estate)/i.test(label) && typeof amount !== 'number') continue;
+        if (typeof amount === 'number' && amount !== 0) {
+          items.push({ name: label, amount: amount, income: (typeof income === 'number') ? income : null });
+        }
+      }
+      return { items: items, total: total, totalIncome: totalIncome };
+    }
+    const sections = {
+      realEstate: readSection(/^real estate$/i),
+      art: readSection(/^arts?\b/i),
+      otherInvestments: readSection(/^other investments$/i)
+    };
+    return { rows: rows, debugDump: dump, sections: sections };
   }
 
   function parseAll(wb) {
@@ -3044,6 +3084,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     setText('nb-banks', fmtUSD(d && d.banksTotal));
     setText('nb-realestate', fmtUSD(d && d.realEstate));
     setText('nb-art', fmtUSD(d && d.artOthers));
+    const arVal = activeView.banks && activeView.banks.total ? activeView.banks.total.accountsReceivable : null;
+    setText('nb-ar', fmtUSD(arVal));
     setText('nb-total-assets', fmtUSD(d && d.totalAssets));
     setText('nb-networth-value', fmtUSD(d && d.netWorth));
     setText('nb-loans', fmtUSD(d && d.totalLiabilities));
@@ -3068,6 +3110,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       title = 'Art & Other';
       lines = [['Art & Other value', d.artOthers]];
       note = 'Total taken from the Dashboard sheet. It has no monthly history, so earlier dates show the latest known value.';
+    } else if (kind === 'ar') {
+      title = 'Accounts Receivable';
+      lines = [['Accounts Receivable', activeView.banks && activeView.banks.total ? activeView.banks.total.accountsReceivable : null]];
+      note = 'Loans made to related companies, from the "Other Investments" section of the "Other" sheet. Shown for reference; it is not included in Total Assets or Total Net Worth above.';
     } else if (kind === 'assets') {
       title = 'Total Assets';
       lines = [['Banks', d.banksTotal], ['Real Estate', d.realEstate], ['Art & Other', d.artOthers]];
@@ -3092,18 +3138,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       (total ? rowHtml(total[0], total[1], true) : '') +
       '<div style="color:var(--muted);font-size:12px;line-height:1.5;margin-top:14px;">' + esc(note) + '</div></div>';
     // Real Estate / Art & Other: also show the "Others" sheet detail from the Excel file.
-    const others = state && state.others;
-    if ((kind === 'realestate' || kind === 'art') && others && others.rows && others.rows.length) {
-      const fmtCell = v => (typeof v === 'number') ? (Math.abs(v) >= 1000 ? fmtUSD(v) : String(Math.round(v * 10000) / 10000)) : String(v);
-      const detail = others.rows.map(row =>
-        '<div style="display:flex;gap:14px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px;">' +
-        row.cells.map((cell, i) => '<span style="' + (i === 0 ? 'flex:1;' : 'text-align:right;') + '">' + esc(fmtCell(cell.v)) + '</span>').join('') + '</div>'
+    const sec = state && state.others && state.others.sections
+      ? (kind === 'realestate' ? state.others.sections.realEstate : (kind === 'art' ? state.others.sections.art : (kind === 'ar' ? state.others.sections.otherInvestments : null)))
+      : null;
+    if ((kind === 'realestate' || kind === 'art' || kind === 'ar') && sec && sec.items && sec.items.length) {
+      const detail = sec.items.map(it =>
+        '<div style="display:flex;justify-content:space-between;gap:20px;padding:7px 0;border-bottom:1px solid var(--border);font-size:13px;"><span>' + esc(it.name) + '</span><span>' + esc(fmtUSD(it.amount)) + '</span></div>'
       ).join('');
+      const totalLine = (sec.total !== null && sec.total !== undefined)
+        ? '<div style="display:flex;justify-content:space-between;gap:20px;padding:9px 0;font-weight:700;font-size:13px;"><span>Total</span><span>' + esc(fmtUSD(sec.total)) + '</span></div>' : '';
       const box = wrap.firstChild;
-      box.style.maxWidth = '620px';
+      box.style.maxWidth = '520px';
       box.style.maxHeight = '85vh';
       box.style.overflowY = 'auto';
-      box.insertAdjacentHTML('beforeend', '<div style="margin-top:16px;font-weight:700;font-size:13px;">Detail (from the "Others" sheet' + (activeView.isLatest ? '' : ' -- latest values, no monthly history') + ')</div>' + detail);
+      box.insertAdjacentHTML('beforeend', '<div style="margin-top:16px;font-weight:700;font-size:13px;">Detail (from the "Other" sheet' + (activeView.isLatest ? '' : ' -- latest values, no monthly history') + ')</div>' + detail + totalLine);
     }
     document.body.appendChild(wrap);
     wrap.addEventListener('click', e => { if (e.target === wrap || e.target.id === 'breakdown-close') wrap.remove(); });
