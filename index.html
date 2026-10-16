@@ -3153,6 +3153,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       box.style.overflowY = 'auto';
       box.insertAdjacentHTML('beforeend', '<div style="margin-top:16px;font-weight:700;font-size:13px;">Detail (from the "Other" sheet' + (activeView.isLatest ? '' : ' -- latest values, no monthly history') + ')</div>' + detail + totalLine);
     }
+    if ((kind === 'realestate' || kind === 'art' || kind === 'ar') && !(sec && sec.items && sec.items.length)) {
+      const hasOthers = state && state.others;
+      const why = !hasOthers ? 'The "Other" sheet was not read from the last uploaded file.'
+        : (!state.others.sections ? 'The last uploaded file predates the detail feature.'
+        : 'No line items were found for this section in the "Other" sheet.');
+      wrap.firstChild.insertAdjacentHTML('beforeend', '<div style="margin-top:12px;color:var(--amber,#d4b06a);font-size:12px;">Detail not available: ' + esc(why) + ' Re-upload the Excel file (with this portfolio selected) to load it.</div>');
+    }
     document.body.appendChild(wrap);
     wrap.addEventListener('click', e => { if (e.target === wrap || e.target.id === 'breakdown-close') wrap.remove(); });
   }
