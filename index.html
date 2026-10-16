@@ -1007,6 +1007,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       </div>
 
       <div class="panel" style="margin-top:14px;">
+        <h3>Debug: Others Sheet Raw Data (temporary)</h3>
+        <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — every non-empty cell the app read from the "Others" sheet (rows 1–80, columns A–N), so the Real Estate / Art &amp; Other detail can be laid out properly.</p>
+        <pre id="debug-others-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
+      </div>
+
+      <div class="panel" style="margin-top:14px;">
         <h3>Debug: YTD / Month Exact Formula Inputs (temporary)</h3>
         <p class="sub" style="margin-bottom:10px;">Shows the intermediate values used to compute the currently selected month's exact YTD and Month Net returns, so they can be compared directly against the Banks sheet's own cells. Select the month in question on the date picker first.</p>
         <pre id="debug-ytd-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(select a historical month to see this)</pre>
@@ -1956,6 +1962,34 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     });
   }
 
+  // Generic read of the "Others" sheet (detail behind Real Estate and Art & Other). Layout
+  // isn't known yet, so every non-empty cell in the top-left block is kept (as row/cell
+  // objects -- Firestore rejects arrays nested directly in arrays) and shown in the Summary
+  // drill-down; a raw dump is also exposed for the Admin debug panel so it can be refined.
+  function parseOthers(wb) {
+    let ws = wb.Sheets['Others'];
+    if (!ws) {
+      const name = (wb.SheetNames || []).find(n => String(n).trim().toLowerCase() === 'others');
+      ws = name ? wb.Sheets[name] : null;
+    }
+    if (!ws) return null;
+    const bounds = sheetBounds(ws);
+    const maxRow = Math.min(bounds.maxRow, 80), maxCol = Math.min(bounds.maxCol, 14);
+    const rows = [], dump = [];
+    for (let r = 1; r <= maxRow; r++) {
+      const cells = [];
+      for (let c = 1; c <= maxCol; c++) {
+        let v = getCell(ws, r, c);
+        if (v === undefined || v === null || v === '') continue;
+        if (v instanceof Date) v = v.toISOString().slice(0, 10);
+        cells.push({ c: colToLetter(c), v: v });
+        dump.push(colToLetter(c) + r + ': ' + JSON.stringify(v) + ' (' + typeof v + ')');
+      }
+      if (cells.length) rows.push({ r: r, cells: cells });
+    }
+    return { rows: rows, debugDump: dump };
+  }
+
   function parseAll(wb) {
     const warnings = [];
     const result = {
@@ -1977,6 +2011,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     result.consolidatedMonthlySeries = tryStep('consolidatedMonthlySeries', () => parseConsolidatedMonthlySeries(wb));
     result.incomeStatement = tryStep('incomeStatement', () => parseIS(wb));
     result.incomeStatementAnnual = tryStep('incomeStatementAnnual', () => parseAnnualIS(wb));
+    result.others = tryStep('others', () => parseOthers(wb));
     const asOf = result.meta && result.meta.asOf;
     if (result.banks && asOf) {
       for (const row of result.banks.rows) {
@@ -3025,11 +3060,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (kind === 'realestate') {
       title = 'Real Estate';
       lines = [['Real Estate value', d.realEstate]];
-      note = 'Taken from the Real Estate column of the "Net Balances" sheet for ' + month + (activeView.isLatest ? ' (Dashboard sheet for the latest month)' : '') + '. The Excel file holds a single total, not a property-by-property list.';
+      note = 'Total taken from the Real Estate column of the "Net Balances" sheet for ' + month + (activeView.isLatest ? ' (Dashboard sheet for the latest month)' : '') + '.';
     } else if (kind === 'art') {
       title = 'Art & Other';
       lines = [['Art & Other value', d.artOthers]];
-      note = 'Taken from the Dashboard sheet. It has no monthly history, so earlier dates show the latest known value.';
+      note = 'Total taken from the Dashboard sheet. It has no monthly history, so earlier dates show the latest known value.';
     } else if (kind === 'assets') {
       title = 'Total Assets';
       lines = [['Banks', d.banksTotal], ['Real Estate', d.realEstate], ['Art & Other', d.artOthers]];
@@ -3053,6 +3088,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       lines.map(l => rowHtml(l[0], l[1], false)).join('') +
       (total ? rowHtml(total[0], total[1], true) : '') +
       '<div style="color:var(--muted);font-size:12px;line-height:1.5;margin-top:14px;">' + esc(note) + '</div></div>';
+    // Real Estate / Art & Other: also show the "Others" sheet detail from the Excel file.
+    const others = state && state.others;
+    if ((kind === 'realestate' || kind === 'art') && others && others.rows && others.rows.length) {
+      const fmtCell = v => (typeof v === 'number') ? (Math.abs(v) >= 1000 ? fmtUSD(v) : String(Math.round(v * 10000) / 10000)) : String(v);
+      const detail = others.rows.map(row =>
+        '<div style="display:flex;gap:14px;padding:6px 0;border-bottom:1px solid var(--border);font-size:12.5px;">' +
+        row.cells.map((cell, i) => '<span style="' + (i === 0 ? 'flex:1;' : 'text-align:right;') + '">' + esc(fmtCell(cell.v)) + '</span>').join('') + '</div>'
+      ).join('');
+      const box = wrap.firstChild;
+      box.style.maxWidth = '620px';
+      box.style.maxHeight = '85vh';
+      box.style.overflowY = 'auto';
+      box.insertAdjacentHTML('beforeend', '<div style="margin-top:16px;font-weight:700;font-size:13px;">Detail (from the "Others" sheet' + (activeView.isLatest ? '' : ' -- latest values, no monthly history') + ')</div>' + detail);
+    }
     document.body.appendChild(wrap);
     wrap.addEventListener('click', e => { if (e.target === wrap || e.target.id === 'breakdown-close') wrap.remove(); });
   }
@@ -3984,6 +4033,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderNetBalancesDebugDump();
     renderPerfDebugDump();
     renderYtdExactDebugDump();
+    const othersEl = document.getElementById('debug-others-dump');
+    if (othersEl) {
+      const o = state && state.others;
+      othersEl.textContent = (o && o.debugDump) ? o.debugDump.join('\n') : 'No "Others" sheet data found in the uploaded file.';
+    }
   }
 
   // TEMPORARY DIAGNOSTIC: renders the raw cell-by-cell dump collected in parseBanks() into
@@ -4115,6 +4169,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     input.parentNode.insertBefore(wrap, input);
     wrap.appendChild(input);
     input.style.paddingRight = '40px';
+    input.style.width = '100%';
     input.style.boxSizing = 'border-box';
     const EYE = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>';
     const EYE_OFF = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><path d="M1 1l22 22"/></svg>';
