@@ -908,7 +908,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           <div class="is-waterfall" id="is-ytd-rows"></div>
         </div>
         <div class="panel">
-          <h3>Monthly</h3>
+          <h3 id="is-monthly-title">Monthly</h3>
           <div class="is-waterfall" id="is-monthly-rows"></div>
         </div>
       </div>
@@ -1051,7 +1051,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   </main>
 
-  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-19-g ·<button id="lock-btn" type="button">Sign Out</button></footer>
+  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-19-h ·<button id="lock-btn" type="button">Sign Out</button></footer>
 </div>
 <script>
 
@@ -2024,6 +2024,35 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     // The exact row numbers on this sheet have drifted between monthly file versions in the
     // past (an inserted row shifts everything below it), so rows are located by their label
     // text instead of hardcoded row numbers -- same defensive approach used for 'Expenses'.
+    // JJ layout: a single annual table (year in B; Div from Inv, Capital G/L, Other Income,
+    // Expenses, Net Income, NI Since Inception in C..H) instead of MV's YTD/monthly boxes. Net
+    // Income = Div + Capital G/L + Other Income + Expenses (verified against the sheet).
+    const jjHdr = findRowByExactLabel(ws, 3, 'Div from Inv', 1, 10);
+    if (jjHdr) {
+      const table = [];
+      for (let r = jjHdr + 1; r <= bounds.maxRow; r++) {
+        const yr = getCell(ws, r, 2);
+        if (typeof yr !== 'number') break;
+        const row = { year: yr, div: safe(getCell(ws, r, 3)), cap: safe(getCell(ws, r, 4)), other: safe(getCell(ws, r, 5)),
+          exp: safe(getCell(ws, r, 6)), net: safe(getCell(ws, r, 7)), since: safe(getCell(ws, r, 8)) };
+        if (row.div === null && row.cap === null && row.other === null && row.exp === null && row.net === null) continue;
+        table.push(row);
+      }
+      const cur = table.length ? table[table.length - 1] : null;
+      if (!cur) return null;
+      const sum = (cur.div || 0) + (cur.cap || 0) + (cur.other || 0) + (cur.exp || 0);
+      return {
+        ytdLabel: 'YTD ' + cur.year,
+        ytd: {
+          interestDividends: cur.div, interestDividendsPct: null,
+          capitalGains: cur.cap, capitalGainsPct: null,
+          expensesTransfers: (cur.other || 0) + (cur.exp || 0), expensesTransfersPct: null,
+          wealthIncrease: cur.net !== null ? cur.net : sum, wealthIncreasePct: null
+        },
+        monthly: null,
+        annualTable: table
+      };
+    }
     const LABEL_COL = 3; // C
     let ytdLabel = null;
     outer:
@@ -3845,8 +3874,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
 
     const monthlyRowsEl = document.getElementById('is-monthly-rows');
+    const monthlyTitleEl = document.getElementById('is-monthly-title');
+    if (monthlyTitleEl) monthlyTitleEl.textContent = (is && is.annualTable) ? 'Net Income by Year' : 'Monthly';
     if (monthlyRowsEl) {
-      if (is && is.monthly) {
+      if (is && is.annualTable) {
+        const th = t => `<th style="text-align:right;font-weight:600;color:var(--muted);padding:4px 6px;white-space:nowrap;">${t}</th>`;
+        const td = (v, bold) => {
+          const c = pctClass(v) === 'pos' ? 'var(--pos,#3ddb9b)' : (pctClass(v) === 'neg' ? 'var(--neg,#ff7a7a)' : 'inherit');
+          return `<td style="text-align:right;padding:5px 6px;white-space:nowrap;${bold ? 'font-weight:700;color:' + c + ';' : ''}">${esc(fmtUSD(v))}</td>`;
+        };
+        const body = is.annualTable.slice().reverse().map(r =>
+          `<tr><td style="padding:5px 6px;font-weight:600;">${r.year}</td>${td(r.div)}${td(r.cap)}${td(r.other)}${td(r.exp)}${td(r.net, true)}${td(r.since)}</tr>`).join('');
+        monthlyRowsEl.innerHTML = `<div class="table-scroll"><table style="width:100%;border-collapse:collapse;font-size:12px;">
+          <thead><tr><th style="text-align:left;padding:4px 6px;color:var(--muted);">Year</th>${th('Div from Inv')}${th('Capital G/L')}${th('Other Income')}${th('Expenses')}${th('Net Income')}${th('NI Since Inception')}</tr></thead>
+          <tbody>${body}</tbody></table></div>`;
+      } else if (is && is.monthly) {
         const income = is.monthly.income;
         const expenses = is.monthly.expenses;
         // The source sheet always shows Ingresos al Mes as 100% (it's the base for the other
