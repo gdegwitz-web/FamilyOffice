@@ -730,14 +730,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             <div class="nb-row nb-click" data-nav="detail:art">
               <div class="nb-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="1.5"/><circle cx="10" cy="10.5" r="1.6"/><path d="M6.5 17 11 12.5l2.5 2.5L18 10.5"/></svg></div>
               <div class="nb-row-info">
-                <div class="nb-row-label">Art &amp; Other</div>
+                <div class="nb-row-label" id="nb-art-label">Art &amp; Other</div>
                 <div class="nb-row-value" id="nb-art">—</div>
               </div>
             </div>
             <div class="nb-row nb-click" data-nav="detail:ar">
               <div class="nb-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/><path d="M6 9v.01M18 15v.01"/></svg></div>
               <div class="nb-row-info">
-                <div class="nb-row-label">Accounts Receivable</div>
+                <div class="nb-row-label" id="nb-ar-label">Accounts Receivable</div>
                 <div class="nb-row-value" id="nb-ar">—</div>
               </div>
             </div>
@@ -1025,6 +1025,12 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       </div>
 
       <div class="panel" style="margin-top:14px;">
+        <h3>Debug: Historical Sheet Raw Data (temporary)</h3>
+        <p class="sub" style="margin-bottom:10px;">Every non-empty cell the app read from the "Historical" sheet (rows 1–45, columns A–P) — used to fix the Annual Net Return chart for portfolios whose file is laid out differently.</p>
+        <pre id="debug-hist-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
+      </div>
+
+      <div class="panel" style="margin-top:14px;">
         <h3>Debug: Dashboard Sheet Raw Data (temporary)</h3>
         <p class="sub" style="margin-bottom:10px;">Screenshot this and send it over — every non-empty cell the app read from the "Dashboard" sheet (rows 1–40, columns A–AF).</p>
         <pre id="debug-dashboard-dump" style="white-space:pre-wrap;font-size:11px;line-height:1.5;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:400px;overflow:auto;">(load an Excel file to see this)</pre>
@@ -1224,6 +1230,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
       return fallback;
     }
+    const ART_RE = /^(arts?|cars)\b/i;
+    const AR_RE = /^(acc(ounts|\.)?\s*receivable|other investments)$/i;
+    // Display text of the first column A-L cell matching `re`, title-cased ("CARS & OTHERS" -> "Cars & Others").
+    function labelText(re) {
+      for (let r = 1; r <= 45; r++) {
+        for (let c = 1; c <= 12; c++) {
+          const v = getCell(ws, r, c);
+          if (typeof v === 'string' && re.test(v.trim())) {
+            return v.trim().toLowerCase().replace(/\b[a-z]/g, m => m.toUpperCase());
+          }
+        }
+      }
+      return null;
+    }
     const dump = [];
     for (let r = 1; r <= 40; r++) {
       for (let c = 1; c <= 32; c++) {
@@ -1239,8 +1259,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       netWorth: labeled(/^(total )?net worth$/i, safe(getCell(ws, 21, 15))),      // O21
       banksTotal: labeled(/^banks?$/i, safe(getCell(ws, 11, 8))),     // H11
       realEstate: labeled(/^real estate$/i, safe(getCell(ws, 16, 8))),     // H16
-      artOthers: labeled(/^art(s)?\b/i, safe(getCell(ws, 22, 8))),      // H19 now
-      accountsReceivable: labeled(/^acc(ounts|\.)?\s*receivable$/i, null), // H22 now
+      artOthers: labeled(ART_RE, safe(getCell(ws, 22, 8))),      // "Art & Others" (MV) / "Cars & Others" (JJ)
+      accountsReceivable: labeled(AR_RE, null), // "Acc. Receivable" (MV) / "Other Investments" (JJ)
+      artLabel: labelText(ART_RE),
+      arLabel: labelText(AR_RE),
       allocation: {
         cash: safe(getCell(ws, 10, 21)),        // U10
         fixedIncome: safe(getCell(ws, 10, 23)), // W10
@@ -1604,9 +1626,18 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
       return out;
     }
+    const histDump = [];
+    for (let r = 1; r <= 45; r++) {
+      for (let c = 1; c <= 16; c++) {
+        const v = getCell(ws, r, c);
+        if (v === undefined || v === null || v === '') continue;
+        histDump.push(colToLetter(c) + r + ': ' + JSON.stringify(v instanceof Date ? v.toISOString().slice(0, 10) : v));
+      }
+    }
     return {
       gross: readBlock(grossHeaderRow, netHeaderRow ? netHeaderRow - 1 : bounds.maxRow),
-      net: readBlock(netHeaderRow, bounds.maxRow)
+      net: readBlock(netHeaderRow, bounds.maxRow),
+      debugDump: histDump
     };
   }
 
@@ -1678,7 +1709,21 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const bounds = sheetBounds(ws);
     const rowGross = findRowByExactLabel(ws, 7, 'CEMS (Gross)', 1, 40); // col G
     const rowNet = findRowByExactLabel(ws, 7, 'CEMS (Net)', 1, 40);
-    if (!rowGross && !rowNet) return [];
+    if (!rowGross && !rowNet) {
+      // Labels not found (e.g. another portfolio's file names them differently): return an
+      // empty series but still expose a raw dump of the top-left block for the Admin panel.
+      const emptyOut = [];
+      const d0 = [];
+      for (let r = 1; r <= 40; r++) {
+        for (let c = 1; c <= 14; c++) {
+          const v = getCell(ws, r, c);
+          if (v === undefined || v === null || v === '') continue;
+          d0.push(colToLetter(c) + r + ': ' + JSON.stringify(v instanceof Date ? v.toISOString().slice(0, 10) : v));
+        }
+      }
+      emptyOut.debugDump = d0;
+      return emptyOut;
+    }
     const dateMap = buildDateColMap(ws, 2, 3, 8, bounds.maxCol); // year row2, month row3, data starts col H(8)
     const cols = Object.keys(dateMap).map(Number).sort((a, b) => a - b);
     const out = [];
@@ -2024,14 +2069,31 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   // objects -- Firestore rejects arrays nested directly in arrays) and shown in the Summary
   // drill-down; a raw dump is also exposed for the Admin debug panel so it can be refined.
   function parseOthers(wb) {
-    let ws = wb.Sheets['Others'];
-    if (!ws) {
-      const names = wb.SheetNames || [];
-      const lower = n => String(n).trim().toLowerCase();
-      const name = names.find(n => lower(n) === 'others') || names.find(n => /^(others?|otros?)\b/.test(lower(n))) || names.find(n => /other|otro/.test(lower(n)));
-      ws = name ? wb.Sheets[name] : null;
-    }
-    if (!ws) return null;
+    // Portfolio files differ ("Other" in MV Family; "Other Investments" AND an unrelated
+    // "OTHERS" bank-flow sheet in JJ), so try every sheet whose name looks like "other"/"otros"
+    // and keep the one that actually contains the section headers (Real Estate / Art / Cars /
+    // Other Investments).
+    const candidateNames = (wb.SheetNames || []).filter(n => /other|otro/i.test(String(n)));
+    if (!candidateNames.length) return null;
+    const sectionDefs = {
+      realEstate: /^real estate$/i,
+      art: /^(arts?|cars)\b/i,
+      otherInvestments: /^other investments$/i
+    };
+    let best = null;
+    candidateNames.forEach(n => {
+      const w = wb.Sheets[n];
+      if (!w) return;
+      const secs = {};
+      let score = 0;
+      Object.keys(sectionDefs).forEach(k => {
+        secs[k] = readSectionFrom(w, sectionDefs[k]);
+        if (secs[k] && secs[k].items.length) score++;
+      });
+      if (!best || score > best.score) best = { name: n, ws: w, secs: secs, score: score };
+    });
+    if (!best) return null;
+    const ws = best.ws;
     const bounds = sheetBounds(ws);
     const maxRow = Math.min(bounds.maxRow, 80), maxCol = Math.min(bounds.maxCol, 14);
     const rows = [], dump = [];
@@ -2048,38 +2110,37 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
     // Structured sections, confirmed from the real layout: labels in column J, amounts in L,
     // income in M. Each section starts at its header label and ends at its "Totals" row.
-    function readSection(headerRegex) {
-      let start = -1;
-      for (let r = 1; r <= 80; r++) {
-        const v = getCell(ws, r, 10);
-        if (typeof v === 'string' && headerRegex.test(v.trim())) { start = r; break; }
+    // Header found anywhere in columns A-N (other portfolios' files place blocks differently);
+    // item names are in the header's column, amount = first number within the next 4 columns
+    // on the same row, income = the next number after that.
+    return { sheet: best.name, rows: rows, debugDump: dump, sections: best.secs };
+  }
+  function readSectionFrom(ws, headerRegex) {
+    let start = -1, col = -1;
+    for (let r = 1; r <= 80 && start === -1; r++) {
+      for (let c = 1; c <= 14; c++) {
+        const v = getCell(ws, r, c);
+        if (typeof v === 'string' && headerRegex.test(v.trim())) { start = r; col = c; break; }
       }
-      if (start === -1) return null;
-      const items = [];
-      let total = null, totalIncome = null;
-      for (let r = start + 1; r <= 80; r++) {
-        const name = getCell(ws, r, 10);
-        if (typeof name !== 'string' || !name.trim()) continue;
-        const label = name.trim();
-        const amount = getCell(ws, r, 12), income = getCell(ws, r, 13);
-        if (/^totals?$/i.test(label)) {
-          total = (typeof amount === 'number') ? amount : null;
-          totalIncome = (typeof income === 'number') ? income : null;
-          break;
-        }
-        if (/^(description|other investments|arts|real estate)/i.test(label) && typeof amount !== 'number') continue;
-        if (typeof amount === 'number' && amount !== 0) {
-          items.push({ name: label, amount: amount, income: (typeof income === 'number') ? income : null });
-        }
-      }
-      return { items: items, total: total, totalIncome: totalIncome };
     }
-    const sections = {
-      realEstate: readSection(/^real estate$/i),
-      art: readSection(/^arts?\b/i),
-      otherInvestments: readSection(/^other investments$/i)
-    };
-    return { rows: rows, debugDump: dump, sections: sections };
+    if (start === -1) return null;
+    const items = [];
+    let total = null, totalIncome = null;
+    for (let r = start + 1; r <= 80; r++) {
+      const name = getCell(ws, r, col);
+      if (typeof name !== 'string' || !name.trim()) continue;
+      const label = name.trim();
+      const nums = [];
+      for (let k = col + 1; k <= col + 5 && nums.length < 2; k++) {
+        const n = getCell(ws, r, k);
+        if (typeof n === 'number') nums.push(n);
+      }
+      const amount = nums.length ? nums[0] : null, income = nums.length > 1 ? nums[1] : null;
+      if (/^totals?$/i.test(label)) { total = amount; totalIncome = income; break; }
+      if (/^(description|other investments|arts?\b|cars\b|real estate)/i.test(label) && amount === null) continue;
+      if (amount !== null && amount !== 0) items.push({ name: label, amount: amount, income: income });
+    }
+    return { items: items, total: total, totalIncome: totalIncome };
   }
 
   function parseAll(wb) {
@@ -3136,8 +3197,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     setText('nb-banks', fmtUSD(d && d.banksTotal));
     setText('nb-realestate', fmtUSD(d && d.realEstate));
     setText('nb-art', fmtUSD(d && d.artOthers));
-    const arVal = activeView.banks && activeView.banks.total ? activeView.banks.total.accountsReceivable : null;
+    // Prefer the Dashboard's own figure (its label differs per portfolio: "Acc. Receivable" in
+    // MV Family, "Other Investments" in JJ); fall back to the Banks sheet / Net Balances value.
+    const arVal = (d && typeof d.accountsReceivable === 'number') ? d.accountsReceivable
+      : (activeView.banks && activeView.banks.total ? activeView.banks.total.accountsReceivable : null);
     setText('nb-ar', fmtUSD(arVal));
+    setText('nb-art-label', (d && d.artLabel) || 'Art & Other');
+    setText('nb-ar-label', (d && d.arLabel) || 'Accounts Receivable');
     setText('nb-total-assets', fmtUSD(d && d.totalAssets));
     setText('nb-networth-value', fmtUSD(d && d.netWorth));
     setText('nb-loans', fmtUSD(d && d.totalLiabilities));
@@ -3154,21 +3220,27 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const d = activeView.dashboard || {};
     const month = monthYearLabel(activeView.year, activeView.month);
     let title = '', lines = [], total = null, note = '';
+    const dl = (state && state.dashboard) || {};
+    const artName = dl.artLabel || 'Art & Other';
+    const arName = dl.arLabel || 'Accounts Receivable';
+    const arV = (typeof d.accountsReceivable === 'number') ? d.accountsReceivable
+      : (typeof dl.accountsReceivable === 'number' && activeView.isLatest) ? dl.accountsReceivable
+      : (activeView.banks && activeView.banks.total ? activeView.banks.total.accountsReceivable : null);
     if (kind === 'realestate') {
       title = 'Real Estate';
       lines = [['Real Estate value', d.realEstate]];
       note = 'Total taken from the Real Estate column of the "Net Balances" sheet for ' + month + (activeView.isLatest ? ' (Dashboard sheet for the latest month)' : '') + '.';
     } else if (kind === 'art') {
-      title = 'Art & Other';
-      lines = [['Art & Other value', d.artOthers]];
+      title = artName;
+      lines = [[artName + ' value', d.artOthers]];
       note = 'Total taken from the Dashboard sheet. It has no monthly history, so earlier dates show the latest known value.';
     } else if (kind === 'ar') {
-      title = 'Accounts Receivable';
-      lines = [['Accounts Receivable', activeView.banks && activeView.banks.total ? activeView.banks.total.accountsReceivable : null]];
-      note = 'Loans made to related companies, from the "Other Investments" section of the "Other" sheet. Included in Total Assets.';
+      title = arName;
+      lines = [[arName, arV]];
+      note = 'Included in Total Assets.';
     } else if (kind === 'assets') {
       title = 'Total Assets';
-      lines = [['Banks', d.banksTotal], ['Real Estate', d.realEstate], ['Art & Other', d.artOthers], ['Accounts Receivable', activeView.banks && activeView.banks.total ? activeView.banks.total.accountsReceivable : null]];
+      lines = [['Banks', d.banksTotal], ['Real Estate', d.realEstate], [artName, d.artOthers], [arName, arV]];
       total = ['Total Assets', d.totalAssets];
       note = 'Banks + Real Estate + Art & Other + Accounts Receivable.';
     } else if (kind === 'networth') {
@@ -3538,7 +3610,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const innerEl = document.getElementById('annual-inner');
     if (scrollEl && innerEl) {
       const need = closed.length * 28 + 50;
-      innerEl.style.width = need > scrollEl.clientWidth ? need + 'px' : '100%';
+      // clientWidth is 0 while the Historical tab is hidden -- never size from that.
+      innerEl.style.width = (scrollEl.clientWidth > 0 && need > scrollEl.clientWidth) ? need + 'px' : '100%';
     }
     const chartA = makeChart('chart-annual-return', {
       type:'bar',
@@ -4188,6 +4261,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     renderNetBalancesDebugDump();
     renderPerfDebugDump();
     renderYtdExactDebugDump();
+    const histEl = document.getElementById('debug-hist-dump');
+    if (histEl) {
+      const hd = state && state.historicalAnnual && state.historicalAnnual.debugDump;
+      histEl.textContent = hd ? hd.join('\n') : 'No Historical debug data (re-upload the Excel file after this update).';
+    }
     const dashEl = document.getElementById('debug-dashboard-dump');
     if (dashEl) {
       const dd = state && state.dashboard && state.dashboard.debugDump;
@@ -4198,7 +4276,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const o = state && state.others;
       const names = state && state.sheetNames;
       const namesLine = names ? 'Sheets in file: ' + names.map(n => '"' + n + '"').join(', ') + '\n\n' : 'Sheet list not available -- re-upload the Excel file after this update.\n\n';
-      othersEl.textContent = namesLine + ((o && o.debugDump) ? o.debugDump.join('\n') : 'No "Others" sheet data found in the uploaded file.');
+      othersEl.textContent = namesLine + (o && o.sheet ? 'Sheet used for detail: "' + o.sheet + '"\n\n' : '') + ((o && o.debugDump) ? o.debugDump.join('\n') : 'No "Others" sheet data found in the uploaded file.');
     }
   }
 
@@ -4284,6 +4362,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function switchView(view){
     document.querySelectorAll('nav.tabs button').forEach(b => b.classList.toggle('active', b.dataset.view === view));
     document.querySelectorAll('.view').forEach(v => v.classList.toggle('active', v.id === 'view-' + view));
+    // The annual chart sizes itself from its container, which only has a width once visible.
+    if (view === 'historico' && state) renderAnnualWithScroll();
   }
 
   function handleFile(file){
