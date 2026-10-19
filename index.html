@@ -2198,6 +2198,16 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         result.bankMonthlySeries[row.name] = tryStep('bankMonthlySeries:' + row.name, () => (sheetName ? parseBankMonthlySeries(wb, sheetName) : []));
       }
     }
+    // Fallback for portfolios whose Banks sheet has a different layout (e.g. JJ): if the net
+    // YTD return couldn't be read from the Banks sheet, use the Historical sheet's net
+    // performance for the current (last) year row, and gross likewise if it is missing.
+    if (result.banks && result.banks.total && result.historicalAnnual) {
+      const lastOf = arr => (arr || []).filter(e => typeof e.perf === 'number').slice(-1)[0];
+      const hn = lastOf(result.historicalAnnual.net), hg = lastOf(result.historicalAnnual.gross);
+      const t = result.banks.total;
+      if ((t.ytdReturnNet === null || t.ytdReturnNet === undefined) && hn) t.ytdReturnNet = hn.perf;
+      if ((t.ytdReturnGross === null || t.ytdReturnGross === undefined) && hg) t.ytdReturnGross = hg.perf;
+    }
     result.warnings = warnings;
     return result;
   }
