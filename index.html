@@ -2203,6 +2203,35 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     result.incomeStatementAnnual = tryStep('incomeStatementAnnual', () => parseAnnualIS(wb));
     result.others = tryStep('others', () => parseOthers(wb));
     result.sheetNames = (wb.SheetNames || []).slice();
+    // Some files (JJ) keep a stale Performance sheet (old benchmark data, e.g. 2015). When it has
+    // nothing recent, derive monthly returns from the consolidated monthly balances using the same
+    // formula as the Banks sheet: (balance - last month balance - month's net transfers) / this
+    // month's Net Financial Assets (gross approximated over last month's balance).
+    try {
+      const cs = (result.consolidatedMonthlySeries || []).slice().sort((a, b) => ymKey(a.year, a.month) - ymKey(b.year, b.month));
+      const pm = result.performanceMonthly || [];
+      const latestCs = cs.length ? cs[cs.length - 1] : null;
+      const latestPm = pm.length ? pm[pm.length - 1] : null;
+      const stale = !latestPm || (latestCs && ymKey(latestCs.year, latestCs.month) - ymKey(latestPm.year, latestPm.month) > 12);
+      if (latestCs && stale) {
+        const derived = [];
+        for (let i = 1; i < cs.length; i++) {
+          const cur = cs[i], prev = cs[i - 1];
+          if (ymKey(cur.year, cur.month) - ymKey(prev.year, prev.month) !== 1) continue;
+          const nb = findByYearMonth(result.netBalancesMonthly, cur.year, cur.month, e => ({ year: e.date.getFullYear(), month: e.date.getMonth() }));
+          const curCum = typeof cur.transfersWithdrawals === 'number' ? cur.transfersWithdrawals : 0;
+          const prevCum = (cur.month === 0) ? 0 : (typeof prev.transfersWithdrawals === 'number' ? prev.transfersWithdrawals : 0);
+          const delta = cur.totalBalance - prev.totalBalance - (curCum - prevCum);
+          const nfa = nb ? (nb.balanceInBanks + (nb.loansAndLoC || 0) + (nb.accountsReceivable || 0)) : null;
+          derived.push({
+            year: cur.year, month: cur.month,
+            gross: prev.totalBalance ? delta / prev.totalBalance : null,
+            net: nfa ? delta / nfa : (prev.totalBalance ? delta / prev.totalBalance : null)
+          });
+        }
+        if (derived.length) result.performanceMonthly = derived;
+      }
+    } catch (e) { warnings.push('derivedPerformance: ' + e.message); }
     // TEMPORARY: plain-array raw dump of the Performance sheet (rows 1-45, cols A-N). Array
     // properties (like .debugDump on performanceMonthly) are dropped by the Firestore
     // round-trip, so this lives on its own top-level field.
