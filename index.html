@@ -1051,7 +1051,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   </main>
 
-  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-19-e ·<button id="lock-btn" type="button">Sign Out</button></footer>
+  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-19-f ·<button id="lock-btn" type="button">Sign Out</button></footer>
 </div>
 <script>
 
@@ -1941,15 +1941,32 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
     }
 
-    const catLabelCol = 4; // D
-    const totalsRow = findRowByExactLabel(ws, catLabelCol, 'Totals', 1, bounds.maxRow);
-    const interestRow = findRowByExactLabel(ws, catLabelCol, 'Interest Expense', 1, bounds.maxRow);
+    let catLabelCol = 4; // D (MV layout)
+    let totalsRow = findRowByExactLabel(ws, catLabelCol, 'Totals', 1, bounds.maxRow);
+    let interestRow = findRowByExactLabel(ws, catLabelCol, 'Interest Expense', 1, bounds.maxRow);
+    let catStartRow = null; // null = MV rule (14 rows above the Totals row)
+    let firstBlockCol = 5;
+    // JJ layout: category labels in column B, first year block starts in column C (year in C3),
+    // and the monthly-total row has no "Totals" label -- it is the first unlabeled numeric row
+    // below the categories (value in the block's Totals column, 12 columns after the block start).
+    if (!totalsRow) {
+      const jjInterest = findRowByExactLabel(ws, 2, 'Interest Expense', 1, bounds.maxRow);
+      if (jjInterest && typeof getCell(ws, 3, 3) === 'number') {
+        catLabelCol = 2; firstBlockCol = 3; interestRow = jjInterest;
+        const tc = 3 + 12;
+        for (let r = jjInterest + 1; r <= Math.min(bounds.maxRow, jjInterest + 20); r++) {
+          const lab = getCell(ws, r, 2);
+          if ((lab === undefined || lab === null || lab === '') && typeof getCell(ws, r, tc) === 'number' && getCell(ws, r, tc) > 0) { totalsRow = r; break; }
+        }
+        catStartRow = 5;
+      }
+    }
     const yearBlocks = [];
     if (totalsRow) {
       const yearRow = 3; // stable: each yearly block repeats the same row layout, only columns shift right
       // collect every year block (not just the current one) so loan interest can be split out historically too
       const blocks = [];
-      for (let c = 5; c <= bounds.maxCol; c++) {
+      for (let c = firstBlockCol; c <= bounds.maxCol; c++) {
         const yv = getCell(ws, yearRow, c);
         if (typeof yv === 'number' && yv > 1900 && yv < 2100) blocks.push({ year: yv, blockStart: c });
       }
@@ -1962,7 +1979,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           interestMonthly.push(interestRow ? safe(getCell(ws, interestRow, blockStart + i), 0) : 0);
         }
         const categories = []; // excludes "Interest Expense" -- that's loan cost, not family spending
-        for (let r = totalsRow - 14; r < totalsRow; r++) {
+        for (let r = (catStartRow || (totalsRow - 14)); r < totalsRow; r++) {
           const label = getCell(ws, r, catLabelCol);
           if (!label) continue;
           const labelStr = String(label).trim();
@@ -1982,6 +1999,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           familyMonthly: monthly.map((m, i) => m - interestMonthly[i]),
           categories                                 // family categories only, interest excluded
         });
+      });
+    }
+    // No annual summary table (JJ): build it from the yearly blocks.
+    if (!annual.length && yearBlocks.length) {
+      yearBlocks.forEach(b => {
+        const gifts = (b.categories.find(c => /gift|charit/i.test(c.label)) || { value: 0 }).value;
+        annual.push({ year: b.year, totalExpenses: b.ytdTotal, gifts, expensesMinusGifts: b.ytdTotal - gifts });
       });
     }
     const currentYear = yearBlocks.length ? yearBlocks[yearBlocks.length - 1] : null;
