@@ -1612,15 +1612,31 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const bounds = sheetBounds(ws);
     const grossHeaderRow = findRowByExactLabel(ws, 4, 'Initial Balance', 1, 30); // col D
     const netHeaderRow = findRowByExactLabel(ws, 4, 'Initial Balance', (grossHeaderRow || 1) + 1, bounds.maxRow);
-    function readBlock(headerRow, endRow) {
+    // Some files (e.g. JJ) have a single block whose header row holds both "Perf. Gross" and
+    // "Perf. Net" columns instead of two stacked blocks (gross, then net). Detect that by label.
+    function findHeaderCol(headerRow, re) {
+      if (!headerRow) return null;
+      for (let c = 1; c <= 20; c++) {
+        const lab = normLabel(getCell(ws, headerRow, c));
+        if (lab && re.test(lab)) return c;
+      }
+      return null;
+    }
+    const perfGrossCol = findHeaderCol(grossHeaderRow, /perf.*gross/);
+    const perfNetCol = findHeaderCol(grossHeaderRow, /perf.*net/);
+    const singleBlock = !!(perfGrossCol && perfNetCol);
+    function readBlock(headerRow, endRow, perfCol) {
       if (!headerRow) return [];
       const out = [];
+      let lastYear = -Infinity;
       for (let r = headerRow + 1; r <= endRow; r++) {
         const year = getCell(ws, r, 3); // C
         if (typeof year !== 'number') continue;
         const finalBalance = safe(getCell(ws, r, 12)); // L
-        const perf = safe(getCell(ws, r, 13));         // M
+        const perf = safe(getCell(ws, r, perfCol || 13)); // M by default
         if (finalBalance === null) continue;
+        if (year <= lastYear) break; // stray/duplicate rows further down the sheet
+        lastYear = year;
         out.push({ year, finalBalance, perf });
         if (year > 2100) break;
       }
@@ -1633,6 +1649,13 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         if (v === undefined || v === null || v === '') continue;
         histDump.push(colToLetter(c) + r + ': ' + JSON.stringify(v instanceof Date ? v.toISOString().slice(0, 10) : v));
       }
+    }
+    if (singleBlock) {
+      return {
+        gross: readBlock(grossHeaderRow, bounds.maxRow, perfGrossCol),
+        net: readBlock(grossHeaderRow, bounds.maxRow, perfNetCol),
+        debugDump: histDump
+      };
     }
     return {
       gross: readBlock(grossHeaderRow, netHeaderRow ? netHeaderRow - 1 : bounds.maxRow),
