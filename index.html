@@ -1051,7 +1051,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   </main>
 
-  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-19-f ·<button id="lock-btn" type="button">Sign Out</button></footer>
+  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-19-g ·<button id="lock-btn" type="button">Sign Out</button></footer>
 </div>
 <script>
 
@@ -2299,7 +2299,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
       const dMax = sheetBounds(wb.Sheets['Data'] || {}).maxRow || 0;
       const exRows = []; for (let r = 1; r <= 40; r++) exRows.push(r);
-      dumpRows('Expenses', exRows, 22);
+      const isRows = []; for (let r = 1; r <= 50; r++) isRows.push(r);
+      dumpRows('IS', isRows, 16);
       return out;
     });
     // TEMPORARY: raw dump of the "OTHERS" sheet (other bank balances + cash) so its layout can be parsed.
