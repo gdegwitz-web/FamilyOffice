@@ -1051,7 +1051,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   </main>
 
-  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-19-h ·<button id="lock-btn" type="button">Sign Out</button></footer>
+  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-19-i ·<button id="lock-btn" type="button">Sign Out</button></footer>
 </div>
 <script>
 
@@ -2047,6 +2047,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           interestDividends: cur.div, interestDividendsPct: null,
           capitalGains: cur.cap, capitalGainsPct: null,
           expensesTransfers: (cur.other || 0) + (cur.exp || 0), expensesTransfersPct: null,
+          otherIncome: cur.other || 0, expensesOnly: cur.exp || 0,
           wealthIncrease: cur.net !== null ? cur.net : sum, wealthIncreasePct: null
         },
         monthly: null,
@@ -3865,7 +3866,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         ytdRowsEl.innerHTML = [
           row('Interest & Dividends', is.ytd.interestDividends, is.ytd.interestDividendsPct),
           row('Capital Gains', is.ytd.capitalGains, is.ytd.capitalGainsPct),
-          row('Expenses & Transfers', is.ytd.expensesTransfers, is.ytd.expensesTransfersPct),
+          ...((is.ytd.otherIncome !== undefined)
+            ? [row('Other Income', is.ytd.otherIncome, null), row('Expenses', is.ytd.expensesOnly, null)]
+            : [row('Expenses & Transfers', is.ytd.expensesTransfers, is.ytd.expensesTransfersPct)]),
           row('Wealth Increase', is.ytd.wealthIncrease, is.ytd.wealthIncreasePct, { total:true })
         ].join('');
       } else {
@@ -3878,16 +3881,27 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (monthlyTitleEl) monthlyTitleEl.textContent = (is && is.annualTable) ? 'Net Income by Year' : 'Monthly';
     if (monthlyRowsEl) {
       if (is && is.annualTable) {
-        const th = t => `<th style="text-align:right;font-weight:600;color:var(--muted);padding:4px 6px;white-space:nowrap;">${t}</th>`;
-        const td = (v, bold) => {
-          const c = pctClass(v) === 'pos' ? 'var(--pos,#3ddb9b)' : (pctClass(v) === 'neg' ? 'var(--neg,#ff7a7a)' : 'inherit');
-          return `<td style="text-align:right;padding:5px 6px;white-space:nowrap;${bold ? 'font-weight:700;color:' + c + ';' : ''}">${esc(fmtUSD(v))}</td>`;
+        // Compact money format so every column fits without horizontal scrolling (full value in tooltip).
+        const short = v => {
+          if (v === null || v === undefined || isNaN(v)) return '\u2014';
+          const a = Math.abs(v), s = v < 0 ? '-' : '';
+          if (a >= 1e6) return s + '$' + (a / 1e6).toFixed(2) + 'M';
+          if (a >= 1e3) return s + '$' + Math.round(a / 1e3).toLocaleString('en-US') + 'K';
+          return s + '$' + Math.round(a);
         };
-        const body = is.annualTable.slice().reverse().map(r =>
-          `<tr><td style="padding:5px 6px;font-weight:600;">${r.year}</td>${td(r.div)}${td(r.cap)}${td(r.other)}${td(r.exp)}${td(r.net, true)}${td(r.since)}</tr>`).join('');
-        monthlyRowsEl.innerHTML = `<div class="table-scroll"><table style="width:100%;border-collapse:collapse;font-size:12px;">
-          <thead><tr><th style="text-align:left;padding:4px 6px;color:var(--muted);">Year</th>${th('Div from Inv')}${th('Capital G/L')}${th('Other Income')}${th('Expenses')}${th('Net Income')}${th('NI Since Inception')}</tr></thead>
-          <tbody>${body}</tbody></table></div>`;
+        const colr = v => (v > 0 ? 'var(--pos,#3ddb9b)' : (v < 0 ? 'var(--neg,#ff7a7a)' : 'inherit'));
+        const th = (t, al) => `<th style="text-align:${al || 'right'};font-weight:600;font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);padding:6px 4px;border-bottom:1px solid var(--border);">${t}</th>`;
+        const td = (v, bold) => `<td title="${esc(fmtUSD(v))}" style="text-align:right;padding:8px 4px;white-space:nowrap;${bold ? 'font-weight:700;' : 'color:var(--text,inherit);'}color:${bold ? colr(v) : 'inherit'};">${short(v)}</td>`;
+        const rowsDesc = is.annualTable.slice().reverse();
+        const body = rowsDesc.map((r, i) =>
+          `<tr style="${i === 0 ? 'background:rgba(255,255,255,.04);' : ''}border-bottom:1px solid rgba(255,255,255,.05);"><td style="padding:8px 4px;font-weight:700;">${r.year}</td>${td(r.div)}${td(r.cap)}${td(r.other)}${td(r.exp)}${td(r.net, true)}</tr>`).join('');
+        const last = is.annualTable[is.annualTable.length - 1];
+        const since = (last && last.since !== null && last.since !== undefined)
+          ? `<div style="margin-top:10px;display:flex;justify-content:space-between;font-size:12.5px;color:var(--muted);"><span>Cumulative net income (per sheet)</span><span style="font-weight:700;color:${colr(last.since)};">${esc(fmtUSD(last.since))}</span></div>` : '';
+        monthlyRowsEl.innerHTML = `<table style="width:100%;table-layout:fixed;border-collapse:collapse;font-size:clamp(11px,1.15vw,13px);font-variant-numeric:tabular-nums;">
+          <colgroup><col style="width:11%"><col style="width:17%"><col style="width:18%"><col style="width:18%"><col style="width:18%"><col style="width:18%"></colgroup>
+          <thead><tr>${th('Year', 'left')}${th('Div')}${th('Cap G/L')}${th('Other Inc')}${th('Expenses')}${th('Net Income')}</tr></thead>
+          <tbody>${body}</tbody></table>${since}`;
       } else if (is && is.monthly) {
         const income = is.monthly.income;
         const expenses = is.monthly.expenses;
