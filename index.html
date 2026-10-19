@@ -2203,6 +2203,22 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     result.incomeStatementAnnual = tryStep('incomeStatementAnnual', () => parseAnnualIS(wb));
     result.others = tryStep('others', () => parseOthers(wb));
     result.sheetNames = (wb.SheetNames || []).slice();
+    // TEMPORARY: plain-array raw dump of the Performance sheet (rows 1-45, cols A-N). Array
+    // properties (like .debugDump on performanceMonthly) are dropped by the Firestore
+    // round-trip, so this lives on its own top-level field.
+    result.perfRawDump = tryStep('perfRawDump', () => {
+      const ws = wb.Sheets['Performance'];
+      if (!ws) return ['No sheet named "Performance"'];
+      const out = [];
+      for (let r = 1; r <= 45; r++) {
+        for (let c = 1; c <= 14; c++) {
+          const v = getCell(ws, r, c);
+          if (v === undefined || v === null || v === '') continue;
+          out.push(colToLetter(c) + r + ': ' + JSON.stringify(v instanceof Date ? v.toISOString().slice(0, 10) : v));
+        }
+      }
+      return out;
+    });
     // TEMPORARY: raw dump of the "OTHERS" sheet (other bank balances + cash) so its layout can be parsed.
     result.otherBanksDump = tryStep('otherBanksDump', () => {
       const nm = (wb.SheetNames || []).find(n => /^\s*others?\s*$/i.test(n));
@@ -4385,9 +4401,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
   function renderPerfDebugDump(){
     const el = document.getElementById('debug-perf-dump');
     if (!el) return;
-    const series = state && state.performanceMonthly;
-    if (!series || !series.debugDump) { el.textContent = 'No debug data available (only populated right after a fresh Excel upload, not after a page reload).'; return; }
-    el.textContent = series.debugDump.join('\n');
+    const raw = state && state.perfRawDump;
+    if (!raw) { el.textContent = 'No debug data available (re-upload the Excel file after this update).'; return; }
+    el.textContent = 'Performance sheet raw (rows 1-45, cols A-N):\n' + raw.join('\n');
   }
 
   function renderYtdExactDebugDump(){
