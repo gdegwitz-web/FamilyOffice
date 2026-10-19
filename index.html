@@ -2248,6 +2248,30 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       }
       return out;
     });
+    // TEMPORARY: raw dumps of "Data" (header rows + first 3 and last 3 data rows) and "Net
+    // Balances" (rows 1-10 + last 3 rows) to see why the derived monthly returns are empty.
+    result.dataRawDump = tryStep('dataRawDump', () => {
+      const out = ['consolidatedMonthlySeries length=' + (result.consolidatedMonthlySeries || []).length +
+        ', netBalancesMonthly length=' + (result.netBalancesMonthly || []).length +
+        ', performanceMonthly length=' + (result.performanceMonthly || []).length];
+      function dumpRows(name, rows, maxC) {
+        const ws = wb.Sheets[name];
+        if (!ws) { out.push('--- no sheet ' + name); return; }
+        out.push('--- ' + name + ' rows ' + rows[0] + '..' + rows[rows.length - 1] + ' (max row ' + sheetBounds(ws).maxRow + ')');
+        rows.forEach(r => {
+          for (let c = 1; c <= maxC; c++) {
+            const v = getCell(ws, r, c);
+            if (v === undefined || v === null || v === '') continue;
+            out.push(colToLetter(c) + r + ': ' + JSON.stringify(v instanceof Date ? v.toISOString().slice(0, 10) : v));
+          }
+        });
+      }
+      const dMax = sheetBounds(wb.Sheets['Data'] || {}).maxRow || 0;
+      dumpRows('Data', [1, 2, 3, 4, 5], 60);
+      const nbMax = sheetBounds(wb.Sheets['Net Balances'] || {}).maxRow || 0;
+      dumpRows('Net Balances', [1, 2, 3, 4, 5, 6, 7, 8], 16);
+      return out;
+    });
     // TEMPORARY: raw dump of the "OTHERS" sheet (other bank balances + cash) so its layout can be parsed.
     result.otherBanksDump = tryStep('otherBanksDump', () => {
       const nm = (wb.SheetNames || []).find(n => /^\s*others?\s*$/i.test(n));
@@ -4432,7 +4456,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     if (!el) return;
     const raw = state && state.perfRawDump;
     if (!raw) { el.textContent = 'No debug data available (re-upload the Excel file after this update).'; return; }
-    el.textContent = 'Performance sheet raw (rows 1-45, cols A-N):\n' + raw.join('\n');
+    const dr = state && state.dataRawDump;
+    el.textContent = (dr ? '=== Data / Net Balances diagnostics ===\n' + dr.join('\n') + '\n\n' : '') + 'Performance sheet raw (rows 1-45, cols A-N):\n' + raw.join('\n');
   }
 
   function renderYtdExactDebugDump(){
