@@ -1324,7 +1324,10 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const labelCols = [2, 3, 4, 5]; // B, C, D, E
     const searchEnd = Math.max(bounds.maxRow, 80);
     const loansRow = findRowByLabelAnyCol(ws, labelCols, 'Loans & LoC', 10, searchEnd);
-    const arRow = findRowByLabelAnyCol(ws, labelCols, 'Accounts Receivable', 10, searchEnd);
+    // MV calls this row "Accounts Receivable"; JJ's file calls the same row (loans receivable
+    // that sit between Loans & LoC and Net Financial Assets) "Other Liquid Investments".
+    const arRow = findRowByLabelAnyCol(ws, labelCols, 'Accounts Receivable', 10, searchEnd)
+      || findRowByLabelAnyCol(ws, labelCols, 'Other Liquid Investments', 10, searchEnd);
     const netFinRow = findRowByLabelAnyCol(ws, labelCols, 'Net Financial Assets', 10, searchEnd);
     // "Month Net Perf.(%)" was assumed to sit on the same row as Net Financial Assets (a few
     // columns over) -- confirmed wrong once Net Financial Assets' own row moved (21 -> 24)
@@ -1342,6 +1345,17 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
           }
           break;
         }
+      }
+    }
+
+    // Files without a "Month Net Perf" label (JJ): apply the same formula the sheet uses
+    // (confirmed against its own figure): (end balance - last month balance - transfers) / Net
+    // Financial Assets, all from the Total row (H, G, K) and the Net Financial Assets row (H).
+    if (monthReturnNet === null && netFinRow) {
+      const endBal = getCell(ws, totalRow, 8), lastBal = getCell(ws, totalRow, 7);
+      const transfers = getCell(ws, totalRow, 11), nfa = getCell(ws, netFinRow, 8);
+      if (isNum(endBal) && isNum(lastBal) && isNum(transfers) && isNum(nfa) && nfa !== 0) {
+        monthReturnNet = (endBal - lastBal - transfers) / nfa;
       }
     }
 
@@ -2189,6 +2203,20 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     result.incomeStatementAnnual = tryStep('incomeStatementAnnual', () => parseAnnualIS(wb));
     result.others = tryStep('others', () => parseOthers(wb));
     result.sheetNames = (wb.SheetNames || []).slice();
+    // TEMPORARY: raw dump of the "OTHERS" sheet (other bank balances + cash) so its layout can be parsed.
+    result.otherBanksDump = tryStep('otherBanksDump', () => {
+      const nm = (wb.SheetNames || []).find(n => /^\s*others?\s*$/i.test(n));
+      if (!nm) return null;
+      const ws = wb.Sheets[nm], out = [];
+      for (let r = 1; r <= 70; r++) {
+        for (let c = 1; c <= 14; c++) {
+          const v = getCell(ws, r, c);
+          if (v === undefined || v === null || v === '') continue;
+          out.push(colToLetter(c) + r + ': ' + JSON.stringify(v instanceof Date ? v.toISOString().slice(0, 10) : v));
+        }
+      }
+      return out;
+    });
     const asOf = result.meta && result.meta.asOf;
     if (result.banks && asOf) {
       for (const row of result.banks.rows) {
@@ -4309,7 +4337,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
       const o = state && state.others;
       const names = state && state.sheetNames;
       const namesLine = names ? 'Sheets in file: ' + names.map(n => '"' + n + '"').join(', ') + '\n\n' : 'Sheet list not available -- re-upload the Excel file after this update.\n\n';
-      othersEl.textContent = namesLine + (o && o.sheet ? 'Sheet used for detail: "' + o.sheet + '"\n\n' : '') + ((o && o.debugDump) ? o.debugDump.join('\n') : 'No "Others" sheet data found in the uploaded file.');
+      const ob = state && state.otherBanksDump;
+      othersEl.textContent = namesLine + (o && o.sheet ? 'Sheet used for detail: "' + o.sheet + '"\n\n' : '') + ((o && o.debugDump) ? o.debugDump.join('\n') : 'No "Others" sheet data found in the uploaded file.')
+        + '\n\n=== OTHERS (bank balances) sheet raw ===\n' + (ob ? ob.join('\n') : 'No sheet named "OTHERS" found / re-upload the Excel after this update.');
     }
   }
 
