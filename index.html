@@ -1701,7 +1701,9 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     }
     const dateCol = 3; // "C" -- consistently the date column across every version of this file so far
     const balCol = findCol('Balance in Banks', 4);
-    const totalLoanCol = findCol('Total Loan', 8);
+    // MV labels this "Total Loan"; JJ's sheet labels it "Loan Value" (its col H is Net Worth, so
+    // falling back to a fixed column 8 silently read Net Worth as the loan -- confirmed from a dump).
+    const totalLoanCol = findCol('Total Loan', null) || findCol('Loan Value', null) || 8;
     const arCol = findCol('Accounts Receivable', null);
     const reCol = findCol('Real Estate', 9);
     const netWorthCol = findCol('Net Worth', 11);
@@ -2229,6 +2231,11 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
             net: nfa ? delta / nfa : (prev.totalBalance ? delta / prev.totalBalance : null)
           });
         }
+        // The latest month has the Banks sheet's own exact net figure -- use it for that point.
+        const lastD = derived[derived.length - 1];
+        const bt = result.banks && result.banks.total;
+        if (lastD && bt && typeof bt.monthReturnNet === 'number' && lastD.year === latestCs.year && lastD.month === latestCs.month) lastD.net = bt.monthReturnNet;
+        if (lastD && bt && typeof bt.monthReturnGross === 'number' && lastD.year === latestCs.year && lastD.month === latestCs.month) lastD.gross = bt.monthReturnGross;
         if (derived.length) result.performanceMonthly = derived;
       }
     } catch (e) { warnings.push('derivedPerformance: ' + e.message); }
