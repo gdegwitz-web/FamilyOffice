@@ -1051,7 +1051,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   </main>
 
-  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-19-i ·<button id="lock-btn" type="button">Sign Out</button></footer>
+  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-22-j ·<button id="lock-btn" type="button">Sign Out</button></footer>
 </div>
 <script>
 
@@ -2356,6 +2356,32 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
         result.bankMonthlySeries[row.name] = tryStep('bankMonthlySeries:' + row.name, () => (sheetName ? parseBankMonthlySeries(wb, sheetName) : []));
       }
     }
+    // Per-bank YTD for files whose Banks sheet has no YTD column (JJ): same formula that
+    // reproduces the sheet's own total (verified: 8.46%) -- (end balance - prior year-end balance
+    // - YTD net transfers) / prior year-end balance -- with each bank's YTD transfers read from the
+    // Data sheet's "Transfers/Withdrawals YTD" block (AW..) on its latest month row.
+    try {
+      const wsd = wb.Sheets['Data'];
+      if (wsd && result.banks && result.banks.rows) {
+        let lastR = null;
+        const dMax = sheetBounds(wsd).maxRow;
+        for (let r = 4; r <= dMax; r++) {
+          if (getCell(wsd, r, 5) instanceof Date && safe(getCell(wsd, r, 13), 0) > 0) lastR = r;
+        }
+        if (lastR) {
+          result.banks.rows.forEach(row => {
+            if (row.ytdReturn !== null && row.ytdReturn !== undefined) return;
+            let col = null;
+            for (let c = 6; c <= 12; c++) { if (normLabel(getCell(wsd, 3, c)) === normLabel(row.name)) { col = c; break; } }
+            const F = row.balancePriorYearEnd;
+            if (col && F > 0) {
+              const tr = safe(getCell(wsd, lastR, 49 + (col - 6)), 0) || 0;
+              row.ytdReturn = (row.balance - F - tr) / F;
+            }
+          });
+        }
+      }
+    } catch (e) { warnings.push('bankYtd: ' + e.message); }
     // Fallback for portfolios whose Banks sheet has a different layout (e.g. JJ): if the net
     // YTD return couldn't be read from the Banks sheet, use the Historical sheet's net
     // performance for the current (last) year row, and gross likewise if it is missing.
@@ -3643,6 +3669,8 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
     const loanByName = {};
     (loan ? loan.rows : []).forEach(r => loanByName[r.name] = r);
+    // JJ's Banks sheet calls its main institution "JPMorgan" while the Loan sheet says "JPM US".
+    if (!loanByName['JPMorgan'] && loanByName['JPM US']) loanByName['JPMorgan'] = loanByName['JPM US'];
 
     const cardsHtml = ordered.map((r, i) => {
       const isInactive = r.balance <= 0;
