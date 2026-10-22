@@ -1051,7 +1051,7 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
 
   </main>
 
-  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-22-j ·<button id="lock-btn" type="button">Sign Out</button></footer>
+  <footer>MV Family Office · Data processed locally in your browser · Update the Excel file each month to refresh the portfolio · build 2026-10-22-k ·<button id="lock-btn" type="button">Sign Out</button></footer>
 </div>
 <script>
 
@@ -2350,7 +2350,14 @@ var o=[];var l=Array.isArray(e);for(f=n.s.c;f<=n.e.c;++f)s[f]=ya(f);for(var c=n.
     const asOf = result.meta && result.meta.asOf;
     if (result.banks && asOf) {
       for (const row of result.banks.rows) {
-        const sheetName = BANK_SHEET_MAP[row.name];
+        // "JPMorgan" (newer files) is the same institution as "JPM US"; its detail sheet is
+        // "JPM(US)" in the MV file or "JPM JJ" in JJ's -- use whichever exists.
+        let sheetName = BANK_SHEET_MAP[row.name];
+        if (!sheetName || !wb.Sheets[sheetName]) {
+          const cands = normLabel(row.name) === 'jpmorgan' ? ['JPM(US)', 'JPM JJ', 'JPM'] : [];
+          const hit = cands.find(n => wb.Sheets[n]);
+          if (hit) sheetName = hit;
+        }
         if (!sheetName) continue;
         result.bankDetails[row.name] = tryStep('bankDetail:' + row.name, () => parseBankDetail(wb, sheetName, asOf));
         result.bankMonthlySeries[row.name] = tryStep('bankMonthlySeries:' + row.name, () => (sheetName ? parseBankMonthlySeries(wb, sheetName) : []));
